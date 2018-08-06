@@ -1,0 +1,179 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+dosint          equ     21h             ;call to ibm dos function
+
+        if      LARGE_CASE
+pbase   equ     6
+_call   equ     lcall
+_ret    equ     lret
+        else
+pbase   equ     4
+_call   equ     call
+_ret    equ     ret
+        endif
+
+        cseg
+
+;chdir          change directory
+;
+;               call as: ret = chdir(directory)
+;               char *directory - string with path name
+
+        public chdir_
+chdir_:
+        push    bp
+        mov     bp,sp
+        mov     ax,3b00h
+        mov     dx,[bp+pbase]
+        if      LARGE_CASE
+        push    ds
+        mov     ds,[bp+pbase+2]
+        endif
+
+        int     dosint          ;do the dos call to change dir
+        if      LARGE_CASE      
+        pop     ds
+        endif
+        mov     ax,0            ;assume success
+        jnc     chdir_ok
+        dec     ax
+chdir_ok:
+        pop     bp
+        _ret
+
+        
+;getdir         get current directory.
+;
+;               drive number: 0=default, 1=a, 2=b, 3=c ...
+;               call as: ret = getdir(drive,directory)
+
+        public getdir_
+getdir_:
+        push    bp
+        mov     bp,sp
+        mov     dx,[bp+pbase]   ;what drive's directory?
+        mov     si,[bp+pbase+2]
+        if      LARGE_CASE
+        push    ds
+        mov     ds,[bp+pbase+4]
+        endif
+        mov     ax,4700h        ;dos function to get dir
+        int     dosint
+        if      LARGE_CASE      
+        pop     ds
+        endif
+        mov     ax,0            ;assume success
+        jnc     getdir_ok
+        dec     ax
+getdir_ok:
+        pop     bp
+        _ret
+
+
+
+;mkdir          make directory
+;
+;               call as: ret = mkdir(directory)
+;               char *directory - string with path name
+
+        public mkdir_
+mkdir_:
+        push    bp
+        mov     bp,sp
+        mov     ax,3900h
+        mov     dx,[bp+pbase]
+        if      LARGE_CASE
+        push    ds
+        mov     ds,[bp+pbase+2]
+        endif
+
+        int     dosint          ;do the dos call to change dir
+        if      LARGE_CASE      
+        pop     ds
+        endif
+        mov     ax,0            ;assume success
+        jnc     mkdir_ok
+        dec     ax
+mkdir_ok:
+        pop     bp
+        _ret
+
+        
+;rmdir          make directory
+;
+;               call as: ret = rmdir(directory)
+;               char *directory - string with path name
+
+        public rmdir_
+rmdir_:
+        push    bp
+        mov     bp,sp
+        mov     ax,3a00h
+        mov     dx,[bp+pbase]
+        if      LARGE_CASE
+        push    ds
+        mov     ds,[bp+pbase+2]
+        endif
+
+        int     dosint          ;do the dos call to change dir
+        if      LARGE_CASE      
+        pop     ds
+        endif
+        mov     ax,0            ;assume success
+        jnc     rmdir_ok
+        dec     ax
+rmdir_ok:
+        pop     bp
+        _ret
+
+        
+;       chmod   --      change file mode.
+;
+;               call as: ret = chmod(file name,new mode);
+
+        public chmod_
+chmod_:
+        push    bp
+        mov     bp,sp
+        mov     dx,[bp+pbase]   ;path name
+        if      LARGE_CASE
+        push    ds
+        mov     ds,[bp+pbase+2]
+        endif
+        mov     al,0            ; read current attributes
+        mov     ah,43h          ;dos function to get attributes
+        int     dosint
+        and     cx, 0d8h        ;settable bits
+        if      LARGE_CASE
+        or      cx,[bp+pbase+4] ;set attribute bits
+        else    
+        or      cx,[bp+pbase+2]
+        endif
+        mov     al,1            ;write current attributes
+        mov     ah,43h          ;dos function to get attributes
+        int     dosint
+        if      LARGE_CASE      
+        pop     ds
+        endif
+        mov     ax,0            ;assume success
+        jnc     chmod_ok
+        dec     ax
+chmod_ok:
+        pop     bp
+        _ret
+
+
+

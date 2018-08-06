@@ -1,0 +1,109 @@
+;
+;  Released under the GNU GPL.  See http://www.gnu.org/licenses/gpl.txt
+;
+;  This program is part of the SEE editor
+;
+;  SEE is free software; you can redistribute it and/or modify it
+;  under the terms of the GNU General Public License as published by the
+;  Free Software Foundatation; either version 2 of the License, or any
+;  later version.
+;
+;  SEE is distributed in the hope that it will be useful, but WITHOUT
+;  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+;  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+;  for more details.
+;
+;
+;  (c) Copyright 1983, Michael Ouye
+;
+;
+; C interface to the hardware string functions
+;
+		cseg
+		public	f_find_,r_find_
+
+unc:					; put other case in ah
+		mov	ah, al
+		cmp	al, 'a'
+		jl	upc_upper
+		cmp	al, 'z'
+		jg	upc_ret
+		sub	ah, ' '		; convert to upper case
+upc_ret:	ret
+upc_upper:	cmp	al, 'A'
+		jl	upc_ret
+		cmp	al, 'Z'
+		jg	upc_ret
+		add	ah, ' '
+		ret
+
+
+f_find_:		;(char, target, count, casing): index
+		pop	dx		; return address
+		pop	ax		; target character
+		pop	di		; string pointer
+		pop	cx		; max count
+		pop	bx		; case ignore flag
+		sub	sp,8		; put it back on the stack
+		push	dx
+		mov	dx,ds
+		mov	es,dx
+		inc	cx
+		or	bx,bx
+		cld
+		jnz	ic_ffind	; use the case ignore code
+		repnz scasb
+		mov	ax,di
+		dec	ax		; fix up value
+		ret
+ic_ffind:
+		call	unc		; puts 'other' case in ah
+		mov	bx, ax
+		mov	si, di
+ic_floop:
+		lodsb			; char into al, inc si
+		cmp	bl,al
+		je	ic_ffound
+		cmp	bh,al
+		je	ic_ffound
+		loop	ic_floop
+ic_ffound:
+		mov	ax, si
+		dec	ax
+		ret
+
+r_find_:		;(char, target, count, casing): index
+		pop	dx			; return
+		pop	ax			; search char
+		pop	di			; target pointer
+		pop	cx			; max count
+		pop	bx			; case ignore flag
+		sub	sp,8
+		push	dx
+		std
+		inc	cx
+		or	bx,bx
+		jnz	ic_rfind
+		mov	bx,ds
+		mov	es,bx
+		repnz scasb
+		mov	ax,di
+		inc	ax	; fix up value
+		ret
+ic_rfind:
+		call	unc
+		mov	bx,ax
+		mov	si, di
+ic_rloop:
+		lodsb			; char into al, dec si
+		cmp	bl,al
+		je	ic_rfound
+		cmp	bh,al
+		je	ic_rfound
+		loop	ic_rloop
+ic_rfound:
+		mov	ax, si
+		inc	ax
+		ret
+
+

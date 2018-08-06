@@ -1,0 +1,421 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+;       foutput.a  --   format a float for printf.
+
+        include "config.h"
+        if      model
+prec_base       equ     14
+from_base       equ     10
+        else
+prec_base       equ     8
+from_base       equ     6
+        endif
+
+plus    equ     0
+minus   equ     80h
+
+        dseg
+        public  _million:word,_millionth:word,_ten:word,_tenth:word,_one:word
+
+digs    db      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+oexp    dw      0
+ndig    dw      0
+gtype   db      1
+maxdig  dw      15
+ftemp   dw      0,0,0,0
+single_digs:
+         dw 0000h,0000h,0000h,3ff0h             ; 1,2,3,4,5,6,7,8,9,99
+         dw 0000h,0000h,0000h,4000h
+         dw 0000h,0000h,0000h,4008h
+         dw 0000h,0000h,0000h,4010h
+         dw 0000h,0000h,0000h,4014h
+         dw 0000h,0000h,0000h,4018h
+         dw 0000h,0000h,0000h,401ch
+         dw 0000h,0000h,0000h,4020h
+         dw 0000h,0000h,0000h,4022h
+         dw 0000h,0000h,0c000h,4058h
+
+        cseg
+
+        public  _floadd,_fmul,_fcmp,_fcmpkeep,_fsub,_fstored,_fclear,_fzero
+
+
+;       _gfmt  --       format a number for g format.
+;                       style: f format or e format or integer. take shorter.
+;                       calling: width = _gfmt(&destination,&float,precsion);
+
+        public  _gfmt_
+_gfmt_: mov     gtype,1                 ;only get 15 digits
+        call    fmt                     ;fill the digs
+        mov     ax,oexp                 ;see if need g format
+        cmp     ax,12                   ;not really precise
+        jae     econt                   ;if big, use e format
+        inc     ax                      ;number of chars to left of period
+
+;       kill any trailing zeros
+deczro: mov     bx,ndig                 ;number digits
+        dec     bx
+        jz      testg
+        cmp     digs[bx],'0'
+        jnz     testg
+        dec     ndig
+        jmp     deczro
+testg:
+        cmp     ax,ndig                 ;any fraction ?
+        jb      fcont                   ;yes
+        mov     word [bp+prec_base],0   ;kill request for fraction
+        jmp     fcont
+
+
+
+;       _ffmt  --       format a number for f format.
+;                       style: ddd.ddd
+;                       _calling: width = _ffmt(&destination,&float,precsion);
+
+        public  _ffmt_
+_ffmt_: mov     gtype,0
+        call    fmt                     ;fill the digs with the digits
+fcont:  mov     cx,[bp+prec_base]       ;precision of result
+        mov     bx,oexp                 ;see if f format makes sence
+        cmp     bx,12                   ;if too big, use e format
+        jge     econt                   ;too big
+        add     bx,cx
+        _call   round                   ;round the number
+        mov     bx,[bp+pbase]           ;destination
+        if      model
+        mov     es,[bp+pbase+2] 
+        else
+        push    ds
+        pop     es
+        endif
+        neg     cx                      ;minus precision
+        xor     si,si                   ;digit index
+
+;       if no precision and fractional number, print a zero
+        or      cx,cx
+        jnz     some_prec
+        cmp     oexp,0                  ;any real digits ?
+        jge     some_prec
+        mov     byte es:[bx],'0'        ;plant a zero
+        inc     bx
+        jmp     fmt_ret
+some_prec:
+        cmp     oexp,0                  ;need a zero before the point ?
+        jge     nopoint
+        mov     byte es:[bx],'0'        ;plant a leading zero
+        inc     bx
+nopoint:
+        cmp     oexp,-1                 ;need leading zeros ?
+        jge     nxtdig
+
+        mov     byte es:[bx],'.'        ;plant a period
+        inc     bx
+        mov     ax,-1                   ;number of padded zeros
+padz:   mov     byte es:[bx],'0'        ;plant a zero
+        inc     bx
+        cmp     ax,cx                   ;have all nededed precision ?
+        jz      fmt_ret
+        dec     ax
+        cmp     ax,oexp
+        jg      padz
+
+nxtdig: mov     al,'0'                  ;assume no more digits
+        cmp     ndig,si                 ;more digits in answer?
+        jbe     gdig
+        mov     al,digs[si]             ;next digit
+        inc     si
+gdig:   cmp     oexp,-1                 ;need a period if here
+        jnz     noperiod
+        mov     byte es:[bx],'.'        ;plant a period
+        inc     bx
+noperiod:
+        mov     es:[bx],al              ;plant a digit
+        inc     bx
+        dec     oexp                    ;rest is smaller
+        cmp     oexp,cx                 ;have precision ?
+        jge     nxtdig
+
+fmt_ret:mov     ax,bx                   ;calc number of characters returned
+        sub     ax,[bp+pbase]           ;final-start location
+        pop     bp
+        _ret
+
+
+
+
+;       _efmt  --       format in e format for printf.
+;                       style: ddd.ddde-nn
+;                       _calling: width = _efmt(&destination,&float,precsion);
+
+        public  _efmt_
+_efmt_: mov     gtype,0
+        call    fmt                     ;get the digs
+econt:  mov     cx,[bp+prec_base]       ;precision
+        mov     bx,cx
+        _call   round
+        mov     bx,[bp+pbase]           ;destination goes here
+        if      model
+        mov     es,[bp+pbase+2] 
+        else
+        push    ds
+        pop     es
+        endif
+        mov     al,digs                 ;first digit is here
+        mov     es:[bx],al                      ;the first digit to output
+        inc     bx
+        or      cx,cx                   ;if no precision, forget the period
+        jz      efmt_exp
+        mov     si,1                    ;next digit index
+        mov     byte es:[bx],'.'        ;plant the period
+        inc     bx
+fndig:  mov     al,'0'                  ;assume no more digits
+        cmp     si,ndig                 ;are there?
+        jae     fgdig
+        mov     al,digs[si]             ;next digit
+fgdig:  inc     si
+        mov     es:[bx],al              ;put next dig into output
+        inc     bx
+        cmp     si,cx                   ;have the precision ?
+        jbe     fndig
+
+;       add the exponent for e format
+
+efmt_exp:
+        mov     byte es:[bx],'E'        ;E for e format
+        inc     bx
+        mov     ax,oexp                 ;exponent
+        or      ax,ax                   ;see if negative
+        jns     posexp
+        mov     byte es:[bx],'-'        ;minus exponent
+        inc     bx
+        neg     ax                      ;make exponent positive
+        jmp     putexp
+posexp: 
+        mov     byte es:[bx],'+'        ;minus exponent
+        inc     bx
+putexp: _call   adddec                  ;add the decimal exponent in ax
+        mov     ax,bx                   ;calc number of chars output
+        sub     ax,[bp+pbase]           ;end-start position
+        pop     bp
+        _ret
+
+
+
+
+
+;       adddec  --      add an unsigned decimal number at bx
+
+adddec: cmp     ax,10                   ;see if single digit
+        jb      sing_dig
+_dddec: cmp     ax,10                   ;see if last digit
+        jb      last_dig
+        xor     dx,dx                   ;divide by 10
+        mov     cx,10
+        div     cx                      ;result in ax, remainder in dx
+        push    dx                      ;save the remainder
+        _call   _dddec
+        pop     ax                      ;now print the last dig
+last_dig:
+        add     al,'0'                  ;make printable
+        mov     es:[bx],al                      ;put char away
+        inc     bx
+        _ret
+sing_dig:
+        mov     byte es:[bx],'0'
+        inc     bx
+        jmp     last_dig
+
+
+;       round  --       the bx'th digit of digs is the last one.
+
+round:  lea     ax,[bx+1]               ;see if another digit
+        cmp     ax,ndig                 ;see if can round
+        jae     endr
+        cmp     digs[bx+1],'5'          ;classic round up
+        jb      endr                    ;0 to 4 rounds down
+        cmp     bx,-1                   ;need to set to 1 ?
+        jz      set1
+digup:  inc     digs[bx]                ;add 1 for round
+        cmp     digs[bx],'9'            ;see if overflow
+        jbe     endr
+        mov     digs[bx],'0'            ;set to zero and carry
+        dec     bx
+        jns     digup                   ;add to next higher if can
+
+;       round overflow- set to a 1.
+
+set1:   mov     ndig,1                  ;only one significant digit
+        mov     digs,'1'
+        inc     oexp                    ;but it is bigger
+endr:   _ret
+
+
+;       fmt  -- do the work for output formatting
+
+fmt:    pop     dx                      ;return
+        push    bp
+        mov     bp,sp
+        push    dx                      ;local return
+        if      model
+        les     si,[bp+from_base]       ;load pointer to argument
+        else
+        mov     si,[bp+6]               ;argument pointer
+        push    ds
+        pop     es
+        endif
+        mov     oexp,0
+
+;       test for infinity
+        cmp     word es:[si+6],07ff0h
+        jz      isinf
+;       test for overflow
+        cmp     word es:[si+6],07ff8h
+        jnz     notinf
+isinf:  cmp     word es:[si+4],0
+        jnz     notinf
+        mov     ndig,1
+        mov     digs,'*'                ;store a * for infinity
+        ret
+notinf:
+        _call   _floadd
+        mov     oexp,0
+        _call   _fzero                  ;zero number ?
+        jnz     not_z
+        mov     ndig,1                  ;one digit
+        mov     digs,'0'                ;which is a zero
+        _call   _fclear                 ;empty stack
+        ret
+not_z:  mov     ndig,0                  ;assume no minus
+        if      model
+        push    ds
+        pop     es
+        endif
+down6:  mov     si,offset _million      ;is number > 1000000 ?
+        _call   _floadd
+        _call   _fcmpkeep
+        jb      down1
+        add     oexp,6                  ;adjust for the million
+        mov     si,offset _millionth
+        _call   _floadd
+        _call   _fmul
+        jmp     down6
+
+;       adjust by 10 to get a number 1 to 9.99
+
+down1:  mov     si,offset _ten
+        _call   _floadd
+        _call   _fcmpkeep
+        jb      up                      ;less than 10
+        mov     si,offset _tenth
+        _call   _floadd
+        _call   _fmul                   ;adjust for being > 10
+        inc     oexp
+        jmp     down1
+
+;       adjust to make >= 1.
+
+up:     cmp     oexp,0                  ;if adjusted down, dont need up
+        jnz     got_one
+up6:    mov     si,offset _millionth    ;see if under .000001
+        _call   _floadd
+        _call   _fcmpkeep
+        ja      up1
+        sub     oexp,6                  ;got a little number
+        mov     si,offset _million
+        _call   _floadd
+        _call   _fmul
+        jmp     up6
+
+;       multiply by 10 until over 1.
+
+up1:    mov     si,offset _one
+        _call   _floadd
+        _call   _fcmpkeep
+        jae     got_one
+        dec     oexp
+        mov     si,offset _ten
+        _call   _floadd
+        _call   _fmul
+        jmp     up1
+
+;       have a number between 1. and 9.99
+
+;       see how many digits may be needed
+
+got_one:
+        mov     cx,[bp+prec_base]       ;precision
+        inc     cx
+        mov     ax,oexp                 ;plus digits to left of .
+        cmp     ax,2                    ;may need up to 2+ precision
+        jge     add_prec
+        mov     ax,2
+add_prec:
+        add     cx,ax                   ;max digits
+        cmp     cx,15                   ;dont want over 15
+        jle     got_max
+        mov     cx,15
+got_max:
+        mov     maxdig,cx
+
+still_got_one:
+        mov     si,offset ftemp         ;store number so can examine
+        _call   _fstored
+        _call   _floadd
+        mov     ax,ftemp+6              ;top word of float
+        mov     cl,'0'                  ;current digit
+        mov     si,offset single_digs   ;double 1,2,3 ...
+        cmp     ax,[si+6]               ;less than 1 ?
+        jb      dig_z                   ;yes
+        inc     cl
+        add     si,8                    ;8 bytes per number
+ndigo:  cmp     ax,[si+6]               ;bigger ?
+        jb      got_dig
+        inc     cl
+        add     si,8                    ;8 bytes per number
+        jmp     ndigo
+
+;       have the next digit
+
+got_dig:                                ;cl is digit
+        push    cx
+        sub     si,8
+        _call   _floadd                 ;get rid of the units digit
+        _call   _fsub
+        pop     cx
+dig_z:  mov     bx,ndig                 ;number of digits accumulated
+        mov     digs[bx],cl
+        inc     ndig
+        cmp     bx,maxdig               ;16 digits max
+        jz      fixedoo
+        _call   _fzero                  ;have a zero ?
+        jz      fixedo
+        mov     si,offset _ten          ;mul number by 10
+        _call   _floadd
+        _call   _fmul
+        jmp     still_got_one
+
+;       have the number in digs
+
+fixedoo:cmp     gtype,1                 ;15 digs if g type format
+        jnz     fixedo
+        cmp     ndig,16
+        jnz     fixedo
+        mov     bx,14
+        _call   round
+        mov     ndig,15
+fixedo: _call   _fclear                 ;clear the stack
+        ret
+

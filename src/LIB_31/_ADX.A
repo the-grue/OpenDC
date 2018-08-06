@@ -1,0 +1,51 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+	INCLUDE "CONFIG.H"
+;	augment exponent	double _adx(fp,n)
+;				double fp;
+;				int n;
+	cseg
+
+	public	_adx_,_floadd
+_adx_:
+	push	bp		; old
+	mov	bp,sp		;	frame
+
+	mov	ax,[bp+pbase+6]	; get sign + exp
+	mov	bx,ax		; save sign & sig
+	mov	cl,5		; shift factor
+	shl	ax,1		; ditch sign
+	sar	ax,cl		; pull high-bit as sign
+
+	add	ax,[bp+pbase+8]	; augment exp
+
+	mov	cl,5		; shift factor
+	shl	ax,cl		; realign
+	shr	ax,1		; clear sign
+
+	and	bx,800FH	; isolate sign & f
+	or	ax,bx		; put back
+	mov	[bp+pbase+6],ax	;	on stack
+
+	lea	si,word [bp+pbase]	; real addr
+	IF model
+	PUSH SS
+	POP ES
+	ENDIF
+	_call	_floadd		; put on fp stack
+
+	pop	bp
+	_ret

@@ -1,0 +1,450 @@
+;
+;  Released under the GNU GPL.  See http://www.gnu.org/licenses/gpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  DeSmet C is free software; you can redistribute it and/or modify it
+;  under the terms of the GNU General Public License as published by the
+;  Free Software Foundatation; either version 2 of the License, or any
+;  later version.
+;
+;  DeSmet C is distributed in the hope that it will be useful, but WITHOUT
+;  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+;  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+;  for more details.
+;
+;	D88A.A  --	assembler for D88 debugger
+
+PS	EQU	26H
+SETBLK	EQU	4AH
+ALLOC	EQU	48H
+FREE	EQU	49H
+DMABASE EQU	33H
+CPM	EQU	224
+IBM	equ	21h
+
+	dseg
+	public	_pcb_,top_,_ibm_:byte,noinit_:byte
+	public	_msdos2_:byte
+
+	public	rax_,rbx_,rcx_,rdx_,rsi_,rdi_,rbp_,rsp_,rds_,res_
+	public	rss_,rcs_,rip_,rfl_
+
+saved_int1 dw	0,0
+saved_int3 dw	0,0
+saved_cb dw	0,0
+saved_term dw	0,0
+free_from dw	0
+
+user_term db	'normal end',0
+user_cc	db	'user *Control C*',0
+	cseg
+
+	public	scr_clr_,longjmp_
+
+;	ASMINIT  --	steal interrupt 3 and 1. also steal term and control
+;			break addresses.
+
+
+asminit_:xor	ax,ax			;flip interrupt 3
+	mov	es,ax
+	mov	ax,offset gotint1
+	xchg	es:[4],ax
+	mov	saved_int1,ax
+	mov	ax,cs
+	xchg	es:[6],ax
+	mov	saved_int1+2,ax
+	mov	ax,offset gotint3
+	xchg	es:[12],ax
+	mov	saved_int3,ax
+	mov	ax,cs
+	xchg	es:[14],ax
+	mov	saved_int3+2,ax
+
+;	steal control break and exit addresses
+
+	cmp	_ibm_,1
+	jnz	cpminit
+	mov	es,_pcb_		;addresses are in pcb
+	mov	ax,offset gotterm	;steal terminate address
+	xchg	es:[0ah],ax
+	mov	saved_term,ax
+	mov	ax,cs
+	xchg	es:[0ch],ax
+	mov	saved_term+2,ax
+	mov	ax,offset gotcb		;steal control break address
+	xchg	es:[0eh],ax
+	mov	saved_cb,ax
+	mov	ax,cs
+	xchg	es:[10h],ax
+	mov	saved_cb+2,ax
+	ret
+cpminit:
+	mov	cl,DMABASE		;switch dma base
+	mov	dx,rds_
+	int	CPM
+	ret
+
+;	ASMTERM  --	restore interrupt 3
+
+
+asmterm_:xor	ax,ax			;flip interrupt 1
+	mov	es,ax
+	mov	ax,saved_int1
+	mov	es:[4],ax
+	mov	ax,saved_int1+2
+	mov	es:[6],ax
+	mov	ax,saved_int3		;flip interrupt 3
+	mov	es:[12],ax
+	mov	ax,saved_int3+2
+	mov	es:[14],ax
+
+	cmp	_ibm_,1
+	jnz	cpmterm
+	mov	es,_pcb_
+	mov	ax,saved_term
+	mov	es:[0ah],ax
+	mov	ax,saved_term+2
+	mov	es:[0ch],ax
+	mov	ax,saved_cb
+	mov	es:[0eh],ax
+	mov	ax,saved_cb+2
+	mov	es:[10h],ax
+	ret
+cpmterm:
+	mov	cl,DMABASE		;switch dma base
+	mov	dx,ds
+	int	CPM
+	ret
+
+	
+
+
+
+
+;	MEMCHOP  --  chop memory allocation
+;	error = memchop(high water offset);
+
+	public	memchop_
+memchop_:
+	push	bp
+	mov	bp,sp
+	mov	bx,[bp+4]
+	add	bx,15
+	mov	cl,4
+	shr	bx,cl
+	mov	cx,ds
+	add	bx,cx
+	mov	free_from,bx	;no allocate with v1.1
+	cmp	_msdos2_,0
+	jz	okchop
+	mov	ax,_pcb_
+	sub	bx,ax
+	mov	es,ax
+	MOV	AH,SETBLK	;REDUCE MEMORY ALLOCATED
+	INT	IBM
+	MOV	AX,-1		;ASSUME FAILED
+	JC	nfgchop
+okchop:	mov	ax,0
+nfgchop:pop	bp
+	ret
+
+
+
+
+;	MEMALLOC  --  allocate memory
+;	segment = memalloc(segments min, segments max, &top of memory);
+
+	public	memalloc_
+memalloc_:
+	push	bp
+	mov	bp,sp
+	cmp	_msdos2_,0	;no allocate with v1.1
+	jnz	doal
+	mov	ax,free_from	;base of free memory
+	mov	bx,[bp+8]	;pointer to high ram base
+	mov	bx,[bx]		;high ram base
+	sub	bx,ax		;size of free memory for load
+	cmp	bx,[bp+4]	;have enough memory ?
+	jc	memfail
+	pop	bp		;memory is at free_from
+	ret
+
+doal:	mov	bx,[bp+6]
+allocover:
+	MOV	AH,ALLOC	;ALLOCATE MEMORY
+	INT	IBM
+	mov	bp,sp
+	jnc	memok
+	cmp	bx,[bp+4]	;have minimum ?
+	jc	memfail
+	mov	[bp+6],bx	;say only want this much
+	jmp	allocover
+memfail:MOV	AX,-1		;ASSUME FAILED
+	pop	bp
+	ret
+memok:	mov	bx,[bp+6]	;have maximum wanted
+	add	bx,ax		;top of available memory
+	mov	si,[bp+8]	;remember top address
+	mov	[si],bx
+	pop	bp
+	ret
+
+
+
+
+;	MEMFREE  --  free memory
+;	memfree(segment not needed);
+
+	public	memfree_
+memfree_:
+	push	bp
+	mov	bp,sp
+	cmp	_msdos2_,0	;no allocate if v1.1
+	jz	nofree
+	mov	es,[bp+4]
+	MOV	AH,FREE		;ALLOCATE MEMORY
+	INT	IBM
+nofree:	pop	bp
+	ret
+
+
+
+
+;	XGOTO  --	do a direct jump.
+
+save_ss	dw	0
+save_sp	dw	0
+
+	public	xgoto_
+xgoto_:	push	bp			;save the bp
+	mov	bp,sp
+	call	asminit_
+	mov	save_sp,sp
+	mov	save_ss,ss
+
+	cli
+	mov	ss,rss_			;switch stack
+	mov	sp,rsp_
+	sti
+	push	rfl_			;get ready for an iret
+	push	rcs_
+	push	rip_
+	mov	ax,rax_			;load up the registers
+	mov	bx,rbx_
+	mov	cx,rcx_
+	mov	dx,rdx_
+	mov	si,rsi_
+	mov	di,rdi_
+	mov	bp,rbp_
+	mov	es,res_
+	mov	ds,rds_
+	iret
+
+
+
+
+;	GETINT3  --	come here on an interrupt 3
+
+gotint3:push	ds			;restore the ds
+	mov	ds,save_ss		;debugger ds
+	pop	rds_			;set the registers
+	pop	rip_
+	dec	word rip_
+	pop	rcs_
+	pop	rfl_
+	and	word rfl_,0feffh	;turn off stepping bit
+	mov	rsp_,sp			;save user stack
+	mov	rss_,ss
+	cli
+	mov	ss,save_ss		;load debugger stack
+	mov	sp,save_sp
+	sti
+	mov	rax_,ax			;more registers
+	mov	rbx_,bx			;more registers
+	mov	rcx_,cx			;more registers
+	mov	rdx_,dx			;more registers
+	mov	rsi_,si			;more registers
+	mov	rdi_,di			;more registers
+	mov	rbp_,bp			;more registers
+	mov	res_,es			;more registers
+	call	asmterm_
+	pop	bp
+	ret
+
+
+
+;	XSTEP  --	do a hardware step
+
+
+	public	xstep_
+xstep_:	push	bp			;save the bp
+	mov	bp,sp
+	call	asminit_
+	mov	save_sp,sp
+	mov	save_ss,ss
+
+	sti
+	mov	ss,rss_			;switch stack
+	mov	sp,rsp_
+	cli
+	mov	ax,rfl_
+	or	ax,100h			;turn on stepping
+	and	ax,0fdffh		;turn off int enable
+	push	ax			;get ready for an iret
+	push	rcs_
+	push	rip_
+	mov	ax,rax_			;load up the registers
+	mov	bx,rbx_
+	mov	cx,rcx_
+	mov	dx,rdx_
+	mov	si,rsi_
+	mov	di,rdi_
+	mov	bp,rbp_
+	mov	es,res_
+	mov	ds,rds_
+	iret
+
+
+
+
+;	GETINT1  --	come here on an interrupt 1
+
+gotint1:push	ds			;restore the ds
+	mov	ds,save_ss		;debugger ds
+	pop	rds_			;set the registers
+	pop	rip_
+	pop	rcs_
+	pop	rfl_
+	and	word rfl_,0feffh	;turn off stepping bit
+	or	word rfl_,200h		;turn on int enable bit
+	mov	rsp_,sp			;save user stack
+	mov	rss_,ss
+	cli
+	mov	ss,save_ss		;load debugger stack
+	mov	sp,save_sp
+	sti
+	mov	rax_,ax			;more registers
+	mov	rbx_,bx			;more registers
+	mov	rcx_,cx			;more registers
+	mov	rdx_,dx			;more registers
+	mov	rsi_,si			;more registers
+	mov	rdi_,di			;more registers
+	mov	rbp_,bp			;more registers
+	mov	res_,es			;more registers
+	call	asmterm_
+	pop	bp
+	ret
+
+
+
+;	GETTERM  --	come here on a user terminate
+
+gotterm:push	ds			;restore the ds
+	mov	ds,save_ss		;debugger ds
+	pop	rds_			;set the registers
+	mov	rsp_,sp			;save user stack
+	mov	rss_,ss
+	cli
+	mov	ss,save_ss		;load debugger stack
+	mov	sp,save_sp
+	sti
+	mov	rax_,ax			;more registers
+	mov	rbx_,bx			;more registers
+	mov	rcx_,cx			;more registers
+	mov	rdx_,dx			;more registers
+	mov	rsi_,si			;more registers
+	mov	rdi_,di			;more registers
+	mov	rbp_,bp			;more registers
+	mov	res_,es			;more registers
+	call	asmterm_
+	mov	noinit_,1		;cannot reinitilize
+	pop	bp
+	mov	ax,offset user_term	;report the termination
+	push	ax
+	mov	ax,0
+	push	ax
+	call	longjmp_
+
+
+;	GETCB  --	come here on a user control break
+
+gotcb:push	ds			;restore the ds
+	mov	ds,save_ss		;debugger ds
+	pop	rds_			;set the registers
+	mov	rsp_,sp			;save user stack
+	mov	rss_,ss
+	cli
+	mov	ss,save_ss		;load debugger stack
+	mov	sp,save_sp
+	sti
+	mov	rax_,ax			;more registers
+	mov	rbx_,bx			;more registers
+	mov	rcx_,cx			;more registers
+	mov	rdx_,dx			;more registers
+	mov	rsi_,si			;more registers
+	mov	rdi_,di			;more registers
+	mov	rbp_,bp			;more registers
+	mov	res_,es			;more registers
+	call	asmterm_
+	pop	bp
+	mov	noinit_,1		;cannot reinitilize
+	mov	ax,0
+	push	ax
+	mov	ax,offset user_cc	;report the break
+	push	ax
+	call	longjmp_
+
+
+
+;	MOVE_DS  -- move the data segment up enough for the flip screen
+;		move_ds(paragraphs needed);
+
+	public	move_ds_
+move_ds_:
+	push	bp
+	mov	bp,sp
+	mov	ax,[bp+4]		;paragraphs of space needed
+	mov	bx,ds
+	add	bx,ax			;target segment
+	mov	es,bx
+	mov	ss,bx			;move stack up
+	mov	cx,sp			;move data through sp
+	add	cx,130			;to be safe
+	and	cx,0fffeh
+	mov	si,cx
+	mov	di,cx
+	shr	cx,1			;word type move
+	std
+rep	movsw				;move all data contents up
+	mov	ds,bx			;set new ds
+	pop	bp
+	ret
+
+	public	_setbp_
+_setbp_:pop	dx
+	pop	bp
+	push	bp
+	jmp	dx
+
+
+
+
+
+
+;	CALL_DIS  --  call dissassembler.
+
+	public	call_dis_,dis_
+call_dis_:
+	push	bp
+	mov	bp,sp
+	mov	bx,[bp+4]		;argument points to structure
+					;with offset, segment.
+	mov	es,[bx+2]
+	mov	di,[bx]
+	call	dis_
+	mov	bx,[bp+4]		;return address of next
+	mov	[bx],di
+	mov	[bx+2],es
+	pop	bp
+	ret

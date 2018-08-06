@@ -1,0 +1,275 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+;       finput.a  --    input a double precision number
+
+        include "config.h"
+        if      model
+into_at equ     10
+count_at equ    14
+        else
+into_at equ     6
+count_at equ    8
+        endif
+
+        dseg
+        public  _million:word,_millionth:word,_ten:word,_tenth:word
+
+sgn     db      0
+zero    dw      0,0,0,0
+addexp  dw      0
+maxlen  dw      0
+got_dot db      0
+minus   db      0
+
+        cseg
+
+        public  _finput_,_fstored,_floadd,_fadd,_fsub,_fmul,_floadl,_fneg,_fdiv
+        public  atof_
+
+;       atof_    --     return a floating point number from a string.
+;                       number = atof(string);
+
+atof_:  push    bp
+        mov     bp,sp
+        mov     ax,80                   ;max length
+        push    ax
+        push    ax                      ;dummy second argument
+        if      model
+        push    ax
+        mov     ax,[bp+pbase+2]
+        push    ax
+        endif
+        mov     ax,[bp+pbase]           ;string argument
+        push    ax
+        if      model
+        push    ax                      ;in place of call on stack
+        endif
+
+        push    ax
+        push    ax                      ;in place of call on stack
+        mov     bp,sp
+        call    fin
+        if      model
+        add     sp,16
+        else
+        add     sp,10
+        endif
+        cmp     minus,1                 ;should it be negative ?
+        jnz     got_fnum
+        _call   _fneg
+got_fnum:pop    bp
+        _ret
+
+
+
+
+
+;       _finput  --     input a double precision number.
+;                       format [-]nnn[.[nnn]][e | f [+|-]nn]
+;                       width = _finput(buffer,into,maxlen);
+
+_finput_:
+        push    bp
+        mov     bp,sp
+        call    fin                     ;do the input to tos
+        cmp     minus,1                 ;should it be negative ?
+        jnz     got_num
+        _call   _fneg
+got_num:push    ax
+        mov     si,[bp+into_at]         ;destination
+        if      model
+        mov     es,[bp+into_at+2]
+        endif
+        _call   _fstored
+        pop     ax
+        pop     bp
+        _ret
+
+;       fin  -- does the actual work for input
+
+fin:    mov     si,offset zero          ;load a zero
+        if      model
+        push    ds
+        pop     es
+        endif
+        _call   _floadd
+        mov     addexp,0
+        mov     got_dot,0
+        mov     minus,0
+        mov     ax,[bp+count_at]        ;maximum length
+        mov     maxlen,ax
+skipw:  call    nextch
+        cmp     al,' '                  ;skip leading white space
+        jz      skipw
+        cmp     al,9                    ;skip tabs
+        jz      skipw
+        cmp     al,'+'                  ;skip plus sign
+        jz      nxtdig
+        cmp     al,'-'                  ;flag minus if necessary
+        jnz     ifdig
+        mov     minus,1
+
+;       add in the next digit
+
+nxtdig: call    nextch
+ifdig:  cmp     al,'0'                  ;see if 0 to 9
+        jb      not_dig
+        cmp     al,'9'
+        ja      not_dig
+        push    ax                      ;save the digit
+        mov     si,offset _ten          ;multiply old number by 10
+        _call   _floadd
+        _call   _fmul
+        pop     ax                      ;retrieve digit
+        sub     al,'0'                  ;make ax binary
+        mov     ah,0
+        xor     dx,dx
+        _call   _floadl                 ;load the integer
+        _call   _fadd                   ;and add it in
+        cmp     got_dot,1               ;need to adjust for fraction
+        jnz     nxtdig
+        dec     addexp
+        jmp     nxtdig
+
+;       test for a dot in the number
+
+not_dig:cmp     al,'.'
+        jnz     not_dot
+        cmp     got_dot,1               ;already have a dot ?
+        jz      donei
+        mov     got_dot,1               ;flag found a period
+        jmp     nxtdig
+
+;       look for an E or e exponent
+
+not_dot:cmp     al,'E'
+        jz      gote
+        cmp     al,'e'
+        jnz     donei
+
+;       input the explicit exponent
+
+gote:   xor     si,si                   ;input a decimal number
+        mov     cl,0                    ;sign of exponent
+        call    nextch
+        cmp     al,'+'                  ;skip a plus
+        jz      skipplus
+        cmp     al,'-'                  ;flip sign if minus
+        jnz     ndig
+        mov     cl,1                    ;flag for minus exponent
+skipplus:
+        call    nextch
+
+ndig:   cmp     al,'0'                  ;must be 0 to 9
+        jb      endexp
+        cmp     al,'9'
+        ja      endexp
+        sub     al,'0'
+        mov     ah,0                    ;ax is now next digit
+        xchg    si,ax                   ;mul old number by 10
+        mov     bx,10
+        mul     bx                      ;old exponent times 10
+        add     si,ax                   ;new number
+        call    nextch
+        jmp     ndig
+endexp: cmp     al,255                  ;if not at end,  dec pointer
+        jz      negexp
+        inc     maxlen
+negexp: cmp     cl,1                    ;minus exponent ?
+        jnz     posexp
+        neg     si
+posexp: add     addexp,si               ;adjust exponent adjuster
+        jmp     adjin
+
+;       adjust width if necessary
+
+donei:  cmp     al,255
+        jz      adjin
+        inc     maxlen                  ;dont count last character
+adjin:  mov     si,addexp               ;must adjust number for exponent
+        or      si,si                   ;if not zero
+        js      small_num
+
+;       adjust the number up
+
+up6:    cmp     si,6                    ;adjust by a million ?
+        jb      up1
+        sub     si,6
+        push    si
+        mov     si,offset _million
+        _call   _floadd
+        _call   _fmul                   ;multiply by a million
+        pop     si
+        jmp     up6
+
+up1:    or      si,si                   ;all done ?
+        jz      endin                   ;yes
+        dec     si
+        push    si
+        mov     si,offset _ten          ;multiply by 10
+        _call   _floadd
+        _call   _fmul
+        pop     si
+        jmp     up1
+
+endin:  mov     ax,[bp+count_at]        ;return number of bytes input
+        sub     ax,maxlen
+        ret
+
+;       adjust the number down
+
+small_num:
+        neg     si                      ;number of powers to reduce
+
+down6:  cmp     si,6
+        jb      down1
+        sub     si,6
+        push    si
+        mov     si,offset _millionth
+        _call   _floadd
+        _call   _fmul                   ;multiply by a millionth
+        pop     si
+        jmp     down6
+
+down1:  or      si,si                   ;all done ?
+        jz      endin                   ;yes
+        dec     si
+        push    si
+        mov     si,offset _tenth        ;multiply by a tenth
+        _call   _floadd
+        _call   _fmul
+        pop     si
+        jmp     down1
+
+
+
+nextch: cmp     maxlen,0                ;field exhausted ?
+        jz      noinp
+        dec     maxlen
+        if      model
+        push    es
+        les     bx,[bp+pbase]
+        inc     word [bp+pbase]
+        mov     al,es:[bx]
+        pop     es
+        else
+        mov     bx,[bp+4]               ;ptr to next byte of input
+        inc     word [bp+4]
+        mov     al,[bx]                 ;next byte
+        endif
+        ret
+noinp:  mov     al,255                  ;return an impossable
+        ret

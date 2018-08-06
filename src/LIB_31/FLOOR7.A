@@ -1,0 +1,47 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+	include "config.h"
+;	FLOOR7.A	--	Hardware floating point floor function.
+
+	dseg
+cw	dw	0			;control word
+	cseg
+	public	_floadd
+	public	floor_,ceil_
+ceil_:	mov	cx,100000000000b	;set round to up
+	jmp	floor_cont
+
+floor_:	mov	cx,010000000000b	;set round to down
+floor_cont:
+	
+	push	bp
+	mov	bp,sp
+	lea	si,[bp+pbase]		;argument is here
+	if	model
+	push	ss
+	pop	es
+	endif
+	_call	_floadd
+	fstcw	cw
+	or	cw,cx			;set rounding mode
+	fldcw	cw
+	frndint
+	wait
+	and	cw,1111001111111111b	;back to round to even
+	fldcw	cw
+	wait
+	pop	bp
+	_ret

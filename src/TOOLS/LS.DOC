@@ -1,0 +1,42 @@
+
+
+                      LS: a directory listing program
+
+
+      ls is a directory listing program loosely based on the UNIX utility.  
+      It features multiple-column listing, sort by name or modification 
+      date and reverse order sorting.  The syntax for running ls is:
+
+        ls [ -ltr1? ] [ pathname ... ]
+
+      where pathname can be a drive name ( C: ), a directory name, or a 
+            filename which may contain the wildcard search characters *
+            and ?.  If no pathname is given, the current directory is 
+            assumed.
+
+			-l invokes the long format which is a single column listing
+               with the following format:
+
+               <name>        <attrib>        <size>     <time>    <date>
+
+               <attrib> has three fields.  The first field displays the 
+               type of file ( - is for normal files, s is for system 
+               files, d is for directories and h is for hidden files).  
+               The second field indicates read permission which always 
+               happens to be on (r).  The third field indicates write 
+               permission is w if the file is writable or - if not.
+
+            -t changes the sort order to list files by their 
+               modification dates rather the default alphabetical order.  
+               Times are listed with the most recently modified files 
+               first.  
+
+            -r reverses the order of the sort, alphabetic or by time.
+
+            -1 produces a single column of output.
+
+            -? displays the input syntax for ls.
+
+
+      At the end of the listing, the number of files listed and the 
+      total size of the listed files is displayed.

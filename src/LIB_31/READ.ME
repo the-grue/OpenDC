@@ -1,0 +1,69 @@
+The size of the MAKELIB*.LST file used exceedes the buffer size used in
+the original LIB88.EXE program (500 bytes).  You must use the modified
+LIB88.EXE program (included with source) in this package.
+
+In order to make sure I had the correct library built, I split the
+original CSTDIO.S from version 3.1h into it's component parts (a DeSmet
+.S file is just a set of concatinated .O files.  The .S extension tells
+the linker that not all the object modules need to be included in the
+output) and compared them to the .O files compiled from the RUNTIME
+directory sources.  In most cases they were the same, but some differences
+were found.  They are:
+
+RUNTIME              CSTDIO.S              Notes
+===================  ===================   ====================
+upper.a (TOLOWER_)   TOLOWER_.SPL          CSTDIO from 3.03, AH undefined
+                                           runtime is OK
+_PI.C                _PI_.SPL              CSTDIO is wrong, is pi/2
+                                           runtime is OK
+LMOVE.A              _LMOVE_.SPL           CSTDIO from 3.03, conforms to
+                                           manual.  runtime has error checking
+                                           and return
+STRCAT.A             STRNCAT_.SPL          CSTDIO is OK, runtime is bad
+                                           local copy of STRCAT.a fixed
+strcmp.a             STRCMP_.SPL           CSTDIO is OK, was complied from
+                                           stand-alone file.  strcmp.a created
+                                           locally
+ACCESS.a             ACCESS_.SPL           CSTDIO wrong for large case,
+                                           runtime OK
+STRDUP.c             STRDUP_.SPL           Order of publics reversed in files,
+                                           identical code
+MEMMOVE.a            _MOVE_.SPL            CSTDIO bad (dest set twice),
+                                           runtime OK
+EXP10.c              EXP_.SPL              CSTDIO from 3.03, runtime has
+                                           "better" ASCII -> floating point
+SETJMP.a             SETJMP_.SPL           identical code, separate compile
+STRTOK.c             STRTOK_.SPL           different publics order, same code
+CHDIR.a              CHDIR_.SPL            CSTDIO chmod buggy, runtime OK
+STRSTR.c             STRSTR_.SPL           CHK enabled, different line #'s,
+                                           identical code
+LTOA.a               LTOA_.SPL             the same, file is not LTOA.C
+MSVER2.a             _RENAME_.SPL          runtime is later, bugfixed version
+MOVERLAY.c           0037.SPL              variable "hidden" by static
+                                           declaration, identical code
+mtan.c               _TAN_.SPL             file missing, taken from 3.03
+                                           (same as CSTDIO)
+STRTOD.c             LDEXP_.SPL            same code, different variable #'s
+                                           in .O file
+CREAT3.c             _FILES_.SPL           runtime is later, bugfixed version
+ATAN.C               FABS_.SPL             CSTDIO is 3.03 ATAN.C compiled
+                                           with 3.1h (different publics
+                                           ordering), RUNTIME is later code
+ABORT.C              _FLAG_.SPL            same code, RUNTIME has additional
+                                           unused publics
+OVERLAY.C            NUM_OVER.SPL          OVERLAY.C is later file
+ASIN.C               ERRNO_.SPL            CSTDIO is 3.03 .OBJ, same source
+_doprint.c           TOUPPER_.SPL          RUNTIME is "later" code
+FSTUFF.C             0065.SPL              FSTUFF.C is "later"
+FSCANF.C             _SCANEND.SPL          CSTDIO is 3.03, major changes to
+                                           3.1H code
+tan.c                0053.SPL              CSTDIO from 3.03, runtime has
+                                           "better" ASCII -> floating point
+scanf.c              0066.SPL              CSTDIO is 3.03-ish, major changes
+                                           to 3.1H code
+log.c                0068.SPL              CSTDIO from 3.03, runtime has
+                                           "better" ASCII -> floating point
+exp.c                0069.SPL              CSTDIO from 3.03, runtime has
+                                           "better" ASCII -> floating point
+atan2.c              <none>                atan2() function split out into
+                                           separate file

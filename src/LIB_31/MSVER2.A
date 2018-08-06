@@ -1,0 +1,311 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+;       msdos-ii v2.0   file i/o routines.
+
+        include "config.h"
+
+;       ms-dos codes
+
+creat   equ     3ch
+open    equ     3dh
+close   equ     3eh
+read    equ     3fh
+write   equ     40h
+rename  equ     56h
+lseek   equ     42h
+unlink  equ     41h
+
+msdos   equ     21h
+
+lf      equ     10
+cr      equ     13
+
+        dseg
+realcr  db      cr
+
+        cseg
+
+; rename        -1 if error = rename(old name, new name);
+
+        public  _rename_
+_rename_:push   bp
+        mov     bp,sp
+        if      model
+        push    ds
+        lds     dx,[bp+6]               ;ds:dx points to source string
+        les     di,[bp+10]              ;es:di points to destination
+        else
+        mov     dx,[bp+4]               ;ds:dx points to source string
+        mov     ax,ds
+        mov     es,ax                   ;es:di points to destination
+        mov     di,[bp+6]
+        endif
+        mov     ah,rename               ;ask for a rename
+        int     msdos
+        mov     ax,0                    ;assume no errors
+        jnc     renok
+        mov     ax,-1                   ;return -1 if error
+renok:  if      model
+        pop     ds
+        endif
+        pop     bp
+        _ret
+
+
+
+; lseek         -1 if error = lseek(connection, long offset, mode of see);
+;               modes are the same in c88 as ms-dos.
+
+        public  _lseek_
+_lseek_:push    bp
+        mov     bp,sp
+        mov     al,[bp+pbase+6]         ;mode of seek (0 to 2)
+        mov     bx,[bp+pbase]           ;file handle
+        mov     dx,[bp+pbase+2]         ;cx:dx is long offset
+        mov     cx,[bp+pbase+4]
+        mov     ah,lseek
+        int     msdos                   ;do the lseek
+        jnc     seekok
+        mov     ax,-1                   ;return -1 if error
+        mov     dx,-1
+seekok: pop     bp
+        _ret
+
+
+
+
+; unlink        -1 if error = unlink(name);
+
+        public  _unlink_
+_unlink_:push   bp
+        mov     bp,sp
+        if      model
+        push    ds
+        lds     dx,[bp+6]               ;ds:dx points to source string
+        else
+        mov     dx,[bp+4]               ;ds:dx points to source string
+        endif
+        mov     ah,unlink               ;ask for a unlink
+        int     msdos
+        mov     ax,0                    ;assume no errors
+        jnc     unlok
+        mov     ax,-1                   ;return -1 if error
+unlok:  if      model
+        pop     ds
+        endif
+        pop     bp
+        _ret
+
+
+
+
+
+; creat                 filenum=creat(name)
+
+        public  _creat_
+
+_creat_:push    bp
+        mov     bp,sp
+        if      model
+        push    ds
+        lds     dx,[bp+6]               ;ds:dx points to source string
+        else
+        mov     dx,[bp+4]               ;ds:dx points to source string
+        endif
+        xor     cx,cx                   ;normal attributes
+        mov     ah,creat                ;ask for a create
+        int     msdos
+        jnc     creok                   ;return handle if no error
+        mov     ax,-1                   ;return -1 if error
+creok:  if      model
+        pop     ds
+        endif
+        pop     bp
+        _ret
+
+
+
+
+; open                  filenum=open(name,mode)
+
+        public  _open_
+
+_open_: push    bp
+        mov     bp,sp
+        if      model
+        push    ds
+        lds     dx,[bp+6]               ;ds:dx points to source string
+        mov     al,[bp+10]              ;access code
+        else
+        mov     dx,[bp+4]               ;ds:dx points to source string
+        mov     al,[bp+6]               ;access code
+        endif
+        mov     ah,open                 ;ask for a open
+        int     msdos
+        jnc     openok                  ;return handle if no error
+        mov     ax,-1                   ;return -1 if error
+openok: if      model
+        pop     ds
+        endif
+        pop     bp
+        _ret
+
+
+
+
+; read                  charactors read = read(filenum,buffer,nbytes);
+
+        public  _read_
+
+_read_: push    bp
+        mov     bp,sp
+        mov     bx,[bp+pbase]           ;file handle
+        if      model
+        push    ds
+        lds     dx,[bp+8]               ;ds:dx points to source string
+        mov     cx,[bp+12]              ;bytes to read
+        else
+        mov     cx,[bp+8]               ;bytes to read
+        mov     dx,[bp+6]               ;buffer address
+        endif
+        mov     ah,read                 ;ask for a read
+        int     msdos
+        jnc     readok                  ;return bytes read if no error
+        mov     ax,-1                   ;return -1 if error
+readok: if      model
+        pop     ds
+        endif
+        pop     bp
+        _ret
+
+
+
+
+; write                 charactors written = write(filenum,buffer,nbytes);
+
+;       if handle is 1 (standard output) or 4(printer) then change lf's to
+;       cr,lf.
+
+        public  _write_
+
+_write_:push    bp
+        mov     bp,sp
+        mov     bx,[bp+pbase]           ;file handle
+        if      model
+        push    ds
+        lds     dx,[bp+8]               ;ds:dx points to source string
+        mov     cx,[bp+12]              ;bytes to read
+        else
+        mov     cx,[bp+8]               ;bytes to write
+        mov     dx,[bp+6]               ;buffer address
+        endif
+        cmp     bx,2                    ;write to con ?
+        jbe     pad
+        cmp     bx,4                    ;write to lst
+        jnz     normal
+pad:    cmp     cx,0                    ;null write ?
+        jz      writeok
+        mov     si,dx                   ;next byte
+        cmp     byte [si],lf
+        jnz     notlf
+        mov     dx,offset realcr        ;write the cr
+        if      model
+        pop     ds
+        endif
+        mov     cx,1                    ;write one
+        call    write_some
+        jc      writenfg                ;error?
+        if      model
+        push    ds
+        lds     dx,[bp+8]               ;ds:dx points to source string
+        else
+        mov     dx,[bp+6]               ;buffer address
+        endif
+notlf:  mov     si,dx                   ;see how far to next lf
+        if      model
+        mov     ax,[bp+12]              ;bytes to write
+        else
+        mov     ax,[bp+8]               ;bytes to write
+        endif
+        mov     cx,1
+count_nlf:
+        cmp     byte [si+1],lf
+        jz      write_piece
+        cmp     cx,ax
+        jz      write_piece
+        inc     si
+        inc     cx
+        jmp     count_nlf
+write_piece:
+        call    write_some              ;write the characters
+        jc      writenfg                ;error?
+        if      model
+        add     [bp+8],ax
+        lds     dx,[bp+8]               ;ds:dx points to source string
+        sub     [bp+12],ax
+        else
+        add     [bp+6],ax
+        mov     dx,[bp+6]               ;buffer address
+        sub     [bp+8],ax               ;see if done
+        endif
+        jnz     pad
+        jmp     writeok 
+
+normal: mov     ah,write                ;ask for a write
+        push    cx
+        int     msdos
+        pop     cx
+        jc      writenfg                ;error?
+        cmp     ax,cx                   ;were they written ?
+        jz      writeok
+writenfg:
+        mov     ax,-1                   ;return -1 if error
+writeok:if      model
+        pop     ds
+        endif
+        pop     bp
+        _ret
+
+write_some:
+        push    bx                      ;save handle
+        mov     ah,write
+        int     msdos
+        pop     bx
+        ret
+
+
+
+
+
+
+; close                 error = close(file number);
+
+        public  _close_
+
+_close_:push    bp
+        mov     bp,sp
+        mov     bx,[bp+pbase]           ;file handle
+        cmp     bx,4                    ;if reserved, do not really close
+        mov     ax,0                    ;assume reserved
+        jbe     closeok
+        mov     ah,close                ;ask for a close
+        int     msdos
+        mov     ax,0                    ;return 0 if no error
+        jnc     closeok
+        mov     ax,-1                   ;return -1 if error
+closeok:pop     bp
+        _ret
+

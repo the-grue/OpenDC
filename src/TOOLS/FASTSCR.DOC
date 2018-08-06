@@ -1,0 +1,18 @@
+
+
+                   FASTSCR:  Fast screen
+
+	This is a simple program to make character output to the screen run 
+	faster than the standard IBM-PC BIOS routines.  It works by 
+	intercepting the level 16 interrupts (int 10H) and routing the 
+	character output(write tty) requests to code which acts directly on
+	the screen buffer.  Requests which are not supported are passed on
+	to the normal BIOS routine.
+
+    Works for all programs which use the BIOS calls or DOS calls.
+
+
+    To install the program, simply run
+
+      fastscr
+

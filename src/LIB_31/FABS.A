@@ -1,0 +1,64 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+	include "config.h"
+;	double fabs(x)
+;	double x
+;
+;	returns x with sign=0
+
+	cseg
+
+	public	fabs_,_floadd
+
+fabs_:
+	push	bp			; standard
+	mov	bp,sp			; prolog
+
+	and	byte [bp+pbase+7],7FH	; sign=0
+	lea	si,[bp+pbase]		; x
+	if	model
+	push	ss
+	pop	es
+	endif
+	_call	_floadd			; put in fpac
+
+	pop	bp			; standard
+	_ret				; epilog
+
+
+;	abs(a);
+
+;	returns absolute value of a
+
+	public	abs_
+
+abs_:	pop	dx
+	if	model
+	pop	bx
+	endif
+	pop	ax
+	push	ax
+	cmp	ax,0			;see if equal to or over zero
+	jge	absret
+	neg	ax
+absret:	
+	if	model
+	push	bx
+	push	dx
+	_ret
+	else
+	jmp	dx
+	endif

@@ -1,0 +1,86 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+	INCLUDE "CONFIG.H"
+;	access(char * filename, int mode)
+;
+;	return 0 if OK, -1 on err (errno = AX)
+
+	cseg
+	public	access_
+access_:push	bp
+	mov	bp,sp
+
+	if	model
+	push	ds
+	endif
+
+	sub	sp,128		; space for FIND FIRST
+
+	if	model
+	mov	dx,ss
+	mov	ds,dx
+	endif
+
+	mov	dx,sp
+	mov	ah,1AH		; set DTA
+	int	21H
+	mov	dx,[bp+pbase]	; name
+
+	if	model
+	mov	ds,[bp+pbase+2]
+	endif
+
+	xor	cx,cx		; no attributes
+	mov	ah,4EH		; FIND FIRST
+	int	21H
+	jc	err
+
+	if	model
+	test	byte [bp+10],4
+	else
+	test	byte [bp+6],4
+	endif
+
+	jnz	ok
+	mov	bx,sp
+	test	byte ss:[bx+21],1
+	jnz	err
+ok:	xor	ax,ax
+
+	if	model
+	add	sp,128
+	pop	ds
+	else
+	mov	sp,bp
+	endif
+
+	pop	bp
+	ret
+
+	dseg
+	public	errno_:word
+	cseg
+err:	mov	errno_,ax
+	mov	ax,-1
+	if	model
+	add	sp,128
+	pop	ds
+	else
+	mov	sp,bp
+	endif
+
+	pop	bp
+	ret

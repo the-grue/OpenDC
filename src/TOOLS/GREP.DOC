@@ -1,0 +1,22 @@
+
+
+                GREP: a file search utility.
+
+
+       grep is a program used to search files for lines containing a 
+       certain pattern.  Whenever the pattern is found, the line is 
+       listed on the screen.  The syntax for grep is:
+
+          grep [ -y ] <search pattern> file ...
+
+       where  -y indicates that case is to be ignored during the search.
+        
+              <search pattern> is any sequence of characters.  It may 
+              contain the wildcard characters * and ?.  NOTE: if the 
+              pattern contains blanks or wildcard characters, then the 
+              search pattern must be enclosed with double quotes (").
+
+              file is any filename and may contain wildcard characters.
+
+       When a match is found, grep will display the line along with the 
+       line number a filename.

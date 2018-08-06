@@ -1,0 +1,179 @@
+
+
+
+
+                               P C M A K E
+
+                                 V 1 . 2
+
+                     (c) Copyright 1984, Michael Ouye
+
+
+
+       PCmake is a simple program maintenance tool for the IBM-PC (1) and
+       is loosely based on the UNIX (2) make program.  This program is used
+       to keep track of depedencies between files and, based on the last
+       modification date, can generate a batch (.BAT) file for updating
+       out-of-date files.  This batch file can then be executed to
+       perform the update.
+
+       Invocation Syntax:
+
+       PCmake [<dependent>] [ -f<input file> ] [-o<output file>] [-d][-a][-i]
+ 
+         where  <dependent>  is the name of the dependent file to check
+                             for update requreiments (the first dependent
+                             filename used in the input file is used by
+                             default).
+                -f<input file> causes PCmake to get its input from the
+                               given file ("makefile" is used by default).
+                -o<output file> causes PCmake to write the batch file
+                                to the indicated file ("makeit.bat" is used
+                                by default).
+                -d  lists the dependency tree display to the console.
+                -a  insures that all files are updated regardless of 
+                     the modificaton dates.
+                -i  turns off the error checking produced in the .bat file
+
+
+       The input file to PCmake has the following syntax:
+
+
+         <dependent> [ <dependencies> ]
+                     <constructor>
+
+         where  <dependent>    is the file which is to be updated as necessary.
+                <dependencies> is a list of filenames on which the file
+                                 is dependent.  This list can span multiple
+                                 lines and is terminated by the "]".
+                <constructor>  is a number of lines, terminated by a blank
+                                 line, which are executed in order to
+                                 update the file.
+
+
+       Examples:
+
+       The simplest example of a file dependency is an object file's
+       dependency on the corresponding source file.  When the source file
+       is altered, PCmake can be used to detect that the object file is
+       "older" than the source file and can generate the compile command
+       to update the object file.  For example, if we have a source file
+       named foo.c, with its corresponding object file foo.o and executable
+       file foo.exe, the makefile might look as follows:
+
+           foo.exe [ foo.o cstdio.s ]
+                   bind foo.o
+
+           foo.o   [ foo.c stdio.h ]
+                   c88 foo.c
+
+
+       Note the "extra" dependencies of the .EXE file on the c library
+       and the object file dependecy on the standard include header file.
+       If a modification was made to foo.c and PCmake subsequently executed,
+       it would produce a batch file with the following lines:
+
+           c88 foo.c
+           IF ERRORLEVEL 1 GOTO stop
+           bind foo.o
+           IF ERRORLEVEL 1 GOTO stop
+           :stop
+
+       which would result in updating the file foo.exe.  However, if the
+       source file had not been changed, but a new cstdio.s library was
+       copied onto the disk, then PCmake would simply generate:
+
+           bind foo.o
+           IF ERRORLEVEL 1 GOTO stop
+           :stop
+
+       since the source file doesn't need to be recompiled.
+
+
+       MACROS
+
+       A macro is defined by beginning a line with the macro character '$'
+       followed by the macro name and the definition.  For example:
+
+         $FOO a.o b.o c.o
+
+       would define the macro $FOO as the string a.o b.o c.o and could be
+       used in the dependency line
+         xx.exe [ a.o b.o c.o ]
+       as
+         xx.exe [ $FOO ]
+
+       Macros may also be used in the constructor lines to allow
+       fast substition for different environments.  For example:
+       the definitions
+         $C88 c88
+         $C88FLAGS -c
+       could be used to enable the checkout flag on the compiler while
+       you are debugging the program if your makefile had lines like
+
+           foo.o   [ foo.c stdio.h ]
+                   $C88 foo.c $C88FLAGS
+
+       When you want to generate a production version, simply change
+       the definition to
+         $C88FLAGS
+       and the use the -a option to recompile everything without the
+       checkout option on.
+
+       SHORTCUTS
+
+       PCmake also recognizes certain filename extensions and can
+       produce dependency and constructor lines without further
+       user input.  The .exe extension is recognized as being
+       dependent on a file with the .o extension and is created
+       by using the binder.  The .o extension is recognize as being
+       dependent on either a .c or .a file (in that order) depending
+       on which file exists and is created by either compiling or
+       assembling the file.
+
+       For a very simple makefile, with only a single file that
+       must be compiled (foo.c) and bound, we can simply use the
+       following two lines:
+
+         foo.exe
+         foo.o
+
+       PCmake will automatically generate the dependency on foo.o
+       for the foo.exe line and the constructor line
+        $BIND88 foo.o $BIND88FLAGS
+       For the second line, PCmake will find the file foo.c on the
+       disk and make the dependency and constructor line
+        $C88 foo $C88FLAGS
+
+       Note the use of the macros $BIND88 $BIND88FLAGS $C88 $C88FLAGS.
+       This allows you to tailor the defaults to your system.  For example,
+       if your compiler is in the root directory and on the default
+       directory, you can add the macro definition
+        $C88 /c88
+       to your makefile and the PCmake program will replace the macro
+       name $C88 with the string /c88.
+
+       The defaults for the internal macros are:
+         $BIND88      bind88
+         $BIND88FLAGS <none>
+         $C88         c88
+         $C88FLAGS    <none>
+         $ASM88       asm88
+         $ASM88FLAGS  <none>
+
+       Minimizing the first example would yield the following makefile:
+
+         foo.exe [ foo.o cstdio.s ]
+
+         foo.o
+
+       This will generate the same .BAT file as the original example.
+       Note the blank line between the two lines.  This is required
+       whenever there is a dependency list to terminate the list
+       of constructor lines.
+
+       (1)  IBM-PC is a trademark of IBM Corporation
+       (2)  UNIX is a trademark of Western Electric.
+
+
+ 

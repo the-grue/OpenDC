@@ -1,0 +1,12 @@
+
+
+                   FREE:  free space display
+
+
+       free is a very simple program to show the amount of free space 
+       left on a drive without having to watch a directory listing.  The 
+       syntax for free is:
+
+          free <device>
+
+       where <device> is A: B: ...

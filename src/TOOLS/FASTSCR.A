@@ -1,0 +1,309 @@
+;
+; fastscr:  a fast BIOS screen driver for the IBM PC
+;
+;  written by Michael M. Ouye, January 22, 1984
+;
+; This program works by intercepting the calls to the BIOS 
+; interrupt routines at 10H for the screen interrupts
+; Everything is kept CS relative.  Non-supported calls are
+; simply passed on to the BIOS handler.
+;
+		cseg 
+		public main_,scr_int,long_jump
+
+SCRINT:		equ	40H		; int 10H vector offset
+
+main_:		jmp	init_code
+;
+long_jump:	dw	0,0		; storage for original vector
+author:		db	'Michael M. Ouye, 1/22/84'
+
+jump_table:	dw	word unknown		; 0	set mode
+		dw	word unknown		; 1	set cursor type
+		dw	word unknown		; 2	set cursor position
+		dw	word unknown		; 3	read cursor position
+		dw	word unknown		; 4	read light pen position
+		dw	word unknown		; 5	select active display page
+		dw	word unknown		; 6	scroll active page up
+		dw	word unknown		; 7	scroll active page down
+		dw	word unknown		; 8	read attr/char at cursor
+		dw	word unknown		; 9	write attr/char at cursor
+		dw	word unknown		; 10	write char at cursor
+		dw	word unknown		; 11	set color pallette
+		dw	word unknown		; 12	write dot
+		dw	word unknown		; 13	read dot
+		dw	word write_tty		; 14	write tty
+		dw	word unknown		; 15	current video state
+
+crt_base:	dw	0B800H			; base address for card
+
+;
+; BIOS data segment offsets
+;
+BIOS_seg:	equ	40H
+
+crt_mode:	equ	49H
+crt_cols:	equ	4AH
+crt_len:	equ	4CH
+crt_start:	equ	4EH
+cursor_posn:	equ	50H		; 8 words, (row, col)
+cursor_mode:	equ	60H
+active_page:	equ	62H
+addr_6845:	equ	63H
+crt_mode_set:	equ	65H
+crt_pallette:	equ	66H
+equip_flag:	equ	10H
+
+;
+; Special characters
+;
+BS:		equ	08H
+LF:		equ	0AH
+CR:		equ	0DH
+BEL:		equ	07H
+
+;
+;	the screen interrupt routine interrcepts the video requests
+;	and processes the ones it understands.  Unsupported requests
+;	are passed to the normal BIOS routine.
+;
+;	Remember: CS,SS,DS,ES,BX,CX,DX must be preserved
+;
+
+scr_int:				; interrupt entry point
+;
+;  test for known action
+		sti
+		push	ds
+		push	bx
+		mov	bx,BIOS_seg	; BIOS data segment
+		mov	ds,bx		; setup DS
+		cmp	byte [crt_mode],3
+		jg	unknown		; we don't do graphics!
+		xor	bx,bx
+		mov	bl,ah
+		shl	bx,1		; index into jump table
+		jmp	cs:jump_table[bx]
+;
+;	unknown action, reroute to BIOS
+;
+unknown:
+		pop	bx
+		pop	ds
+		push	cs:long_jump+2
+		push	cs:long_jump
+		lret			; BIOS screen driver
+
+
+disable_video:				; turn the screen refresh off
+		cmp	cs:crt_base, 0B000H
+		jne	dv_over
+		ret			; monochrome doesn't need this
+dv_over:
+		mov	dx,word [addr_6845]
+		add	dx,4
+		mov	al,25H
+		out	dx,al		; disable video
+		ret
+
+enable_video:				; set crt mode
+		cmp	cs:crt_base, 0B000H
+		jne	ev_over
+		ret			; monochrome doesn't need this
+ev_over:
+		mov	dx,word [addr_6845]
+		add	dx,4
+		mov	bx,40H
+		mov	es,bx
+		mov	al,es:[65H]	; crt_mode_set
+		out	dx,al		; restore video
+		ret
+
+scr_scup:				; scroll last line, screen from line 0 to 24
+		call	disable_video
+		xor	di,di	
+		push	ds		; save the data segment
+		mov	si,word [crt_cols]
+		mov	cx, word [crt_len]
+		shl	si,1		; was in words per row
+		sub	cx,si		; only the last 24 lines
+		shr	cx,1		; in words
+
+		cld
+		mov	ax, cs:crt_base
+		mov	ds,ax
+		mov	es,ax
+		rep	movsw		; leaves di on the last line
+
+		pop	ds		; restore data segment
+		mov	cx, word [crt_cols]
+		mov	al,' '
+		mov	ah, es:[di+1]
+		rep	stosw		; blank out the last line
+		call	enable_video
+		ret
+
+
+write_tty:				; output tty character
+					; at the cursor position. 
+					; BH = display page, assume active 0
+					; CX = char count, assume 1 for now
+					; AL = char
+		cmp	al,BEL
+		je	unknown		; bel chars to BIOS
+
+		pop	bx		; restore BX
+		push	bx
+		push	cx
+		push	dx
+		push	ax
+		push	es
+		push	si
+		push	di
+
+		mov	ah,bl		; AX is now the full char.
+		cmp	al, CR
+		jne	testLF
+					; process carriage return
+		mov	dx, word [cursor_posn]
+		xor	dl,dl		; set to first column
+		jmp	set_cursor
+
+testLF:		cmp	al, LF
+		jne	testBS
+					; process line feed
+implicitLF:
+		mov	dx, word [cursor_posn]
+		inc	dh
+		cmp	dh,24
+		jle	set_cursor
+					; oops, must scroll
+		call	scr_scup
+		mov	dx, word [cursor_posn]
+		jmp	set_cursor
+
+testBS:		cmp	al, BS
+		jne	writeit
+					; process a backspace
+		mov	dx, word [cursor_posn]
+		or	dl,dl
+		jz	all_done
+		dec	dl
+		jmp	set_cursor
+
+writeit:
+		mov	bx, cs:crt_base
+		mov	es,bx
+					; compute the cursor offset
+					; row * crt_cols + col
+
+		mov	bx,word [cursor_posn] ; BH=row, BL=col
+		mov	cx,ax
+		xor	ax,ax
+		mov	al,bh
+		mov	ah, byte [crt_cols]
+		mul	ah
+		xor	bh,bh
+		add	ax,bx		; offset into regen buffer
+		add	ax,ax		; times 2 for words
+		mov	bx,ax
+		cmp	cs:crt_base, 0B000H
+		je	oc_out		; no delay for monochrome
+oc_over:
+		mov	dx,word [addr_6845]	; 6845 status port
+		add	dx,6
+oc_loop2:	in	al,dx
+		test	al,1
+		jnz	oc_loop2
+		cli
+oc_loop1:	in	al,dx		; wait for it to drop
+		test	al,1
+		jz	oc_loop1
+oc_out:
+		mov	byte es:[bx],cl
+		sti			; reenable interrupts
+
+		mov	dx, word[cursor_posn]
+		inc	dl
+		cmp	dl, byte [crt_cols]
+		jl	set_cursor
+					; oops, wrap around
+		xor	dl,dl		; beginning of the next line
+		mov	word [cursor_posn],dx
+		jmp	implicitLF
+
+set_cursor:				; new cursor position in dx
+		mov	word [cursor_posn], dx
+		xor	ax,ax
+		mov	al,dh
+		mov	ah, byte [crt_cols]
+		mul	ah
+		xor	dh,dh
+		add	ax,dx		; offset into regen buffer
+		mov	cx,ax
+		mov	al,14		; register number for cursor
+		mov	dx, word [addr_6845]
+		out	dx,al
+		inc	dx
+		mov	al,ch
+		out	dx,al
+		dec	dx
+		mov	al,15
+		out	dx,al
+		inc	dx
+		mov	al,cl
+		out	dx,al
+all_done:
+		pop	di
+		pop	si
+		pop	es
+		pop	ax
+		pop	dx
+		pop	cx
+		pop	bx
+		pop	ds
+		iret
+
+
+;
+		
+;
+; initialization sequence, setup, terminate but stay resident
+;		
+
+init_code:	
+		mov	ah,1		; set cursor type
+		mov	ch,6
+		mov	cl,7
+		int	10H
+
+		cli			; turn off interrupts for now
+		xor	ax,ax
+		mov	es,ax		; segment base for vectors
+		mov	ax, es:[SCRINT]	; save the old vector
+		mov	cs:long_jump,ax
+		mov	ax, es:[SCRINT+2]
+		mov	cs:long_jump+2,ax
+		mov	es:[SCRINT], offset scr_int
+		mov	es:[SCRINT+2], cs
+		sti
+
+					; test for monitor type
+		mov	ax,BIOS_seg
+		mov	es,ax
+		mov	ax,0B800H
+		mov	bl,es:byte [equip_flag]	; test which card in use
+		and	bl,30H
+		cmp	bl,30H
+		jne	skip_over
+		mov	ax,0B000H
+skip_over:	mov	cs:crt_base,ax
+
+		mov	ds:byte[1], 27H	; change PCB terminate to resident
+		push	ds
+		xor	dx,dx
+		push	dx
+		mov	dx, offset init_code+100H
+		lret			; long return to the int 27H
+		end
+

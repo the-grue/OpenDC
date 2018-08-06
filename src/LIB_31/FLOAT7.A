@@ -1,0 +1,393 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+	include	"config.h"
+;	FLOAT7.A  --		floating point main module for C using 8087
+
+
+	if	model
+;	8087 instructions	- memory references are all ES:[SI]
+	else
+;	8087 instructions	- memory references are all [SI]
+	endif
+
+	if	model
+FLDD	equ	db	026h,0ddh,04h
+	else
+FLDD	equ	db	0ddh,04h
+	endif
+	if	model
+FLDE	equ	db	026h,0d9h,04h
+	else
+FLDE	equ	db	0d9h,04h
+	endif
+FLDI	equ	db	0dbh,04h
+	if	model
+FSTD	equ	db	026h,0ddh,1ch
+	else
+FSTD	equ	db	0ddh,1ch
+	endif
+	if	model
+FSTE	equ	db	026h,0d9h,1ch
+	else
+FSTE	equ	db	0d9h,1ch
+	endif
+FISTPI	equ	db	0dbh,1ch
+FSTSWSI	equ	db	0ddh,3ch
+
+	DSEG
+
+;	useful constants
+
+	public _one,_ten,_tenth,_million,_millionth,errno_:word
+_one	db	0,0,0,0,0,0,0f0h,3fh
+_ten	db	0,0,0,0,0,0,24h,40h
+_tenth	db	9ah,99h,99h,99h,99h,99h,0b9h,3fh
+_million db	0,0,0,0,80h,84h,2eh,41h
+_millionth db	8dh,0edh,0b5h,0a0h,0f7h,0c6h,0b0h,3eh
+
+isinit	db	0			;one after initilization
+fint	dw	0,0			;word for loading long ints
+cw	dw	0			;control word
+
+	CSEG
+
+
+;	_FLOADD --	load a floating point double precision.
+
+	public	_floadd
+_floadd:_call	_testinit
+	wait
+	FLDD
+	_ret
+
+
+;	_FLOADE  --	load a single precision number.
+
+	public	_floade
+_floade:_call	_testinit
+	wait
+	FLDE
+	_ret
+
+
+
+;	_FLOADL  --	load a long into the fa. from dx:ax
+
+	public	_floadl
+_floadl:mov	fint,ax		;put dx:ax back to memory
+	mov	fint+2,dx
+	_call	_testinit
+	push	si			;use si to address 'short' int
+	mov	si,offset fint
+	wait
+	FLDI
+	pop	si
+	_ret
+
+
+;	_testinit  --	see if chip needs initilization
+
+	public	_testinit
+_testinit:
+	cmp	isinit,0		;flag for initilized
+	jz	doinit
+	_ret
+doinit:	mov	isinit,1
+	wait
+	FNINIT				;do the initilization
+	_ret
+
+
+
+
+
+;	_FPUSH	  --	push a double precision number.
+
+	public	_fpush
+_fpush:	sub	sp,6			;leave room on stack
+	push	bp			;need to retrieve return address
+	mov	bp,sp
+	push	si
+	if	model
+	mov	si,ss			;need on stack
+	mov	es,si
+	mov	si,[bp+10]		; retrieve return segment
+	mov	[bp+2],si
+	endif
+	mov	si,[bp+8]		;retrieve return address
+	xchg	[bp],si			;put return back on stack
+	xchg	bp,si			;reset bp
+	if	model
+	add	si,4			;place to put number
+	else
+	add	si,2			;place to put number
+	endif
+	_call	_fstored
+	pop	si
+	_ret
+
+
+
+;	_FSTORED  --	store a double precision number.
+
+	public	_fstored
+_fstored:
+	wait
+	FSTD				;store at [SI]
+	wait
+	_ret
+
+
+;	_FSTOREE  --	store a single precision number.
+
+	public	_fstoree
+_fstoree:
+	wait
+	FSTE				;store at [SI]
+	wait
+	_ret
+
+
+
+
+
+
+;	_FSTOREL  --	put a long into DX:AX.
+
+	public	_fstorel
+_fstorel:
+	push	si			;store into fint
+	fstcw	cw
+	or	cw,110000000000b	;set round to chop
+	fldcw	cw
+	mov	si,offset fint
+	wait
+	FISTPI				;store the 'short'
+	and	cw,1111001111111111b	;back to round to even
+	fldcw	cw
+	wait
+	mov	ax,fint			;put long into registers
+	mov	dx,fint+2
+	pop	si
+	_ret
+
+
+
+;	_FXCH  --	exchange tos and tos+1
+
+	public	_fxch
+_fxch:	fxch				;let chip do it
+	_ret
+
+
+
+;	_FCLEAR	 --	clear an element from the floating stack
+
+	public	_fclear
+_fclear:push	si			;store into fint
+	mov	si,offset fint
+	wait
+	FISTPI				;store the 'short'
+	pop	si
+	_ret
+
+
+
+
+
+;	_FCMPKEEP  --	compare TPS-1 and TOS. clean TOS only.
+
+	public	_fcmpkeep
+_fcmpkeep:
+	wait
+	FCOMP				;only pop one element off
+	push	si
+	mov	si,offset fint		;use fint to hold status
+	wait
+	FSTSWSI				;store status
+	wait
+	pop	si
+	push	ax			;need ah for sahf
+	mov	ah,byte fint+1		;has completion codes
+	sahf				;load into flags
+	pop	ax
+	jz	gotcompk		;zero is the result
+	jb	cmpa			;reverse carry bit
+	stc				;on as was off
+	_ret
+cmpa:	clc				;turn carry off
+gotcompk:
+	_ret
+
+
+;	_FCMP  --	compare TOS-1 to TOS. clean both from stack. return
+;			flags.
+
+	public	_fcmp
+_fcmp:	wait
+	FCOMPP				;pop two elements off
+	push	si
+	mov	si,offset fint		;use fint to hold status
+	wait
+	FSTSWSI				;store status
+	pop	si
+	push	ax			;need ah for sahf
+	wait
+	mov	ah,byte fint+1		;has completion codes
+	sahf				;load into flags
+	pop	ax
+	jz	gotcompk		;zero is the result
+	jb	cmpa			;reverse carry bit
+	stc				;on as was off
+	_ret
+
+
+
+
+;	_FNEG  --	negate top of stack
+
+	public	_fneg
+_fneg:	wait
+	FCHS				;change sign
+	_ret
+
+
+
+;	_FNOT  --	return 1 if tos is zero. clear tos.
+
+	public	_fnot
+_fnot:	_call	_fis			;NZ if not zero
+	jnz	retzero
+retone:	mov	ax,1
+	cmp	ax,0
+	_ret
+retzero:
+	xor	ax,ax
+	_ret
+
+
+
+;	_FZERO  --	return NZ if tos is not zero. dont clear tos.
+
+	public	_fzero
+_fzero:	push	si
+	wait
+	FTST				;set flags
+	mov	si,offset fint		;retrieve flags
+	wait
+	FSTSWSI				;store flag byte
+	wait
+	mov	si,[si]			;put flags into SI
+	and	si,4100h		;isolate compare flags
+	cmp	si,4000h		;equal if zero
+	pop	si
+	_ret
+
+
+
+
+;	_FIS  --	return NZ if tos is non zero. clear tos.
+
+	public	_fis
+_fis:	_call	_fzero			;see if a zero
+	_call	_fclear			;clear the stack
+	_ret
+
+
+
+;	_FDEC  --	decrement tos.
+
+	public	_fdec
+_fdec:	wait
+	FLD1				;load a one
+	wait
+	FSUB				;subtract the one
+	_ret
+
+
+
+;	_FINC  --	increment tos.
+
+	public	_finc
+_finc:	wait
+	FLD1				;load a one
+	wait
+	FADD				;subtract the one
+	_ret
+
+
+
+
+
+
+;	_FSUB  --	subtract. _tos-1 = _tos-1 - _tos
+
+	public	_fsub
+_fsub:	wait
+	FSUB				;do the subtract
+	_ret
+
+
+;	_FADD  --	add. _tos-1 = _tos-1 + _tos
+
+	public	_fadd
+_fadd:	wait
+	FADD
+	_ret
+
+
+
+
+;	_FDIV  --	divide. _tos-1 = _tos-1 / _tos
+
+	public	_fdiv
+_fdiv:	wait
+	FDIV				;do the divide
+	_ret
+
+
+
+;	_FMUL  --	multiply. _tos-1 = _tos-1 * _tos
+
+	public	_fmul
+_fmul:	wait
+	FMULP	ST(1),ST		;do the multiply
+	_ret
+
+
+;	SQRT_  --	take square root.
+
+	public	sqrt_
+sqrt_:	push	bp
+	mov	bp,sp
+	if	model
+	mov	si,ss
+	mov	es,si
+	endif
+	lea	si,[bp+pbase]		;address of number
+	_call	_floadd
+	xor	ax,ax			;make sure number is not negative
+	mov	dx,ax
+	_call	_floadl
+	_call	_fcmpkeep
+	jc	sqrt_neg
+	fsqrt
+	pop	bp
+	_ret
+sqrt_neg:
+	mov	errno_,33			;out of range
+	pop	bp
+	_ret

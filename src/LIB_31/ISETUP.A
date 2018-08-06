@@ -1,0 +1,919 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+;       isetup.a - setup for c program execution on ibm pc.
+
+;       jumped to by first instruction to do c initilization.
+;       ds:0 is program segment prefix.
+;       ss is program ds.
+;       ss:0 is size of c initilized memory.
+;       ss:2 is size of uninitilized memory.
+
+;       equs define fields.
+
+        include "config.h"
+
+ibm             equ     21h     ;ibm dos interrupt number
+ci_code         equ     1
+co_code         equ     2
+direct_code     equ     6
+direct_input    equ     7
+version         equ     30h
+read            equ     3fh
+setblk          equ     4ah
+terminate       equ     4ch
+
+bs              equ     8
+tab             equ     9
+lf              equ     0ah
+cr              equ     0dh
+conts           equ     19
+contx           equ     24
+
+        dseg
+        public  _PCB_,_psp_,_MSDOS2_    ;used by chain
+ne_msg  db      'not enough memory',10
+memfrom dw      0               ;firse free byte in ds
+_psp_:
+_PCB_   dw      0               ;_PCB_ segment register
+_origsp_ dw     0               ;starting sp. caution: must follow
+                                ;_PCB_
+_MSDOS2_ db     0               ;1 if version 2.0 or above
+vers    db      0               ;version number
+lastch  db      0
+curch   db      0
+
+rcode   rw      1
+exitc   rw      1
+
+        public  environ_,_version_,_osmajor_,_osminor_
+environ_ dw     0
+_version_:
+_osmajor_ db    0
+_osminor_ db    0
+        public  ERRNO_
+ERRNO_  rw      1               ;error number
+
+        if      model == 0
+
+exitf   rw      32
+
+        cseg
+
+        public  _CSETUP,exit_,_exit_,PUTCHAR_,GETCHAR_,PUTS_,MAIN_
+
+;       this is the actual entry point for a c88 program.
+;       the following initilization must take place before a program
+;       is actually called.
+
+;       1)      set sp to highest available byte.
+;       2)      set uninitilized storage to zero.
+;       3)      calculate argc and argv.
+;       4)      set ds to users data area.
+;       5)      call main(argc,argv).
+
+;       if program returns then goto exit.
+
+
+;       set  sp.
+
+_CSETUP:
+        mov     ss:_PCB_,ds     ;save _PCB_ for exit call
+        mov     ax,[2ch]        ;environ
+        mov     ss:environ_,ax
+        mov     ax,[2]          ;ibm puts total system paragraphs here
+        mov     bx,ss           ;current ss:sp must be within available
+        sub     ax,bx           ;paragraphs available for data
+        jbe     not_enough
+        dec     ax              ;play it safe
+        cmp     ax,1000h        ;if over 64k then set sp to 64k
+        jc      under_64
+        mov     ax,0fffh        ;maximum stack without wrap
+under_64:
+        mov     cl,4            ;turn paragraph into byte
+        shl     ax,cl
+        cmp     ax,sp           ;see if big enough
+        jc      not_enough
+        mov     bx,ss:[0]       ;if sp is init data+resdata+127 then make max.
+        add     bx,ss:[2]
+        add     bx,127
+        cmp     sp,bx           ;want maximum ?
+        jnz     have_sp         ;no, must have has a -snn option of bind
+        mov     sp,ax           ;have a good stack
+have_sp:mov     ss:_origsp_,sp  ;remember stack for exec
+
+
+;       remember version number
+
+        mov     ah,version      ;code to ask for version
+        int     ibm
+        mov     ss:_osmajor_,al
+        mov     ss:_osminor_,ah
+        cmp     al,2            ;is it 2 or above ?
+        jb      oldver
+        mov     ss:_MSDOS2_,1   ;true if version 2 or above
+        mov     ss:vers,al      ;remember version for argv[0]
+oldver:
+
+;       calculate argc and argv. the command tail is between 129 and
+;       255. commnad tail in copied to top of stack and argv vector
+;       is placed under it. the command name is lamentably null.
+mov     byte [255],cr   ;dont fall off end if invalid
+        mov     byte [128],' '  ;dont fall off start either (replaces length)
+        mov     cx,1            ;number of arguments. always (null) command
+        mov     si,-1           ;length of arguments.
+;       find size of tail
+cmd_count:
+        inc     si
+        mov     al,[si+129]     ;next command char
+        cmp     al,cr           ;cr or lf is end of line
+        jz      end_count
+        cmp     al,lf
+        jnz     cmd_count
+end_count:
+        inc     si
+        inc     si
+        and     si,0feh         ;need word alligned stack
+        mov     di,sp           ;remember loc of zero
+        sub     sp,si           ;make room for tail
+        mov     bp,sp           ;bp can address new tail
+        cmp     ss:_osmajor_,3  ;3 or above?
+        jb      argvc
+        mov     es,ss:environ_
+        xor     di,di           ;point to environment
+        cld
+        mov     al,0
+scanenv:mov     cx,-1
+  repne scasb                   ;find end of string
+        cmp     byte es:[di],0  ;end of env?
+        jne     scanenv
+        inc     di
+        inc     di
+        inc     di              ;point to name
+        mov     dx,di
+        mov     cx,-1
+  repne scasb
+        mov     cx,di           ;byte past zero
+        sub     cx,dx           ;length + zero
+        inc     cx              ;poss word align
+        and     cl,0feh
+        sub     sp,cx
+        mov     bx,sp
+        mov     di,dx
+namemove:
+        mov     al,es:[di]
+        mov     ss:[bx],al
+        inc     di
+        inc     bx
+        loop    namemove
+        mov     cx,1
+        mov     di,sp
+argvc:  xor     ax,ax
+        push    ax              ;argv[argc]==0
+ntail:  dec     si
+        cmp     si,-1           ;-1 when done
+        jz      save_args
+;       a non white space preceeded by white means another argument
+        mov     al,[si+129]
+        cmp     al,' '          ;see if white
+        jz      white
+        cmp     al,cr
+        jz      white
+        cmp     al,tab
+        jnz     not_white
+white:  mov     al,0            ;set white to null for end of string
+        jmp     stuff
+
+;       is preceeding a white?
+not_white:
+        cmp     byte [si+128],' '
+        jz      new_arg
+        cmp     byte [si+128],tab
+        jnz     stuff
+new_arg:lea     bx,[bp+si]      ;store argv element
+        push    bx
+        inc     cx              ;increment argc
+stuff:  mov     [bp+si],al      ;put tail char on stack
+        jmp     ntail
+
+;       save a pointer to a name or zero for argv[0]
+save_args:
+        push    di
+
+;       save    argv and argc
+        mov     bp,sp           ;dont push sp as 286 is different
+        push    word ss:environ_
+        push    bp              ;*argv[]
+        push    cx              ;argc
+
+;       set ds to correct value
+
+        mov     ax,ss
+        mov     ds,ax
+
+;       initilize uninitilized memory to zero
+
+        mov     di,[0]          ;length of initilized memory is here
+        mov     cx,[2]          ;length of uninitilized is here
+        mov     es,ax           ;es=ds
+        mov     al,0            ;the zero
+        cld
+rep     stosb
+
+;       remember low address of free memory
+
+        add     di,2            ;make word alligned
+        and     di,0fffeh
+        mov     memfrom,di      ;put away for memory call
+
+;       now ready for main
+
+        call    MAIN_           ;and do the program
+
+;       fall into exit if return
+
+        mov     rcode,0         ;set return code to zero
+        jmp     efun
+
+;       atexit(fun)
+
+        public  atexit_
+atexit_:push    bp
+        mov     bp,sp
+        mov     bx,exitc
+        cmp     bl,64
+        je      aterr
+        mov     ax,[bp+4]
+        mov     exitf[bx],ax
+        inc     bx
+        inc     bx
+        mov     exitc,bx
+        xor     ax,ax
+        pop     bp
+        ret
+aterr:  mov     al,1
+        pop     bp
+        ret
+
+;       exit()
+
+exit_:  pop     ax              ; return addr
+        pop     rcode           ; return code
+efun:   mov     bx,exitc        ; # exit functions
+        or      bx,bx           ; test for eol
+        jz      cfile           ; eol
+        dec     bx
+        dec     bx
+        mov     exitc,bx        ; next element
+        mov     ax,offset efun  ; return address
+        push    ax
+        jmp     exitf[bx]
+        public  closeall_
+cfile:  call    closeall_
+        mov     ax,rcode
+        jmp     do_exit
+
+;       _exit();
+
+_exit_: pop     ax              ;retrieve return code
+        pop     ax
+do_exit:                        ;in dos 2.0 use code 4c to terminate
+                                ;as this allows an error code
+        cmp     _MSDOS2_,0      ;dos 1.0 ?
+        jz      oldend
+        mov     ah,terminate    ;doc 2.0 terminate code
+        int     ibm
+
+
+oldend: push    _PCB_           ;create a long return to _PCB_:0
+        mov     ax,0
+        push    ax
+        lret
+
+not_enough:
+        mov     ax,&ne_msg
+        push    ax
+        call    PUTS_
+        add     sp,2
+        mov     al,2            ;error exit
+        jmp     do_exit
+
+
+;       charactor = getchar();
+
+GETCHAR_:
+        cmp     lastch,0        ;saved char
+        jz      dogc
+glast:  mov     al,lastch       ;return last char
+        mov     lastch,0
+        jmp     gotin
+dogc:   mov     ah,ci_code      ;code for echoed input
+        int     ibm             ;do the console read
+gotin:  mov     ah,0            ;return a word
+        cmp     al,26           ;control z ?
+        jz      readnfg
+        ret                     ;character is in al
+readnfg:mov     ax,-1           ;-1 if eof
+        ret
+
+
+;       putchar(character);
+
+PUTCHAR_:pop    ax              ;return address
+        pop     dx              ;dl is character
+        push    dx
+        push    ax
+        cmp     dl,lf           ;must change lf to cr,lf
+        jnz     xco
+ps_end: mov     dl,cr           ;print the cr first
+        call    xco
+        mov     dl,lf           ;put the lf back
+xco:    mov     ah,co_code
+        int     ibm             ;do the write
+        mov     ah,co_code
+        ret
+
+
+;       puts(string address);
+
+PUTS_:  pop     ax              ;return address
+        pop     bx              ;string address
+        push    bx
+        push    ax
+ps_lp:  mov     al,[bx]         ;next char
+        or      al,al
+        jz      ps_end          ;\n at end of string
+        push    bx
+        push    ax              ;char
+        call    PUTCHAR_        ;let putchar turn lf into cr,lf
+        add     sp,2
+        pop     bx
+        inc     bx              ;string pointer
+        jmp     ps_lp
+
+
+
+
+
+        public  CI_, CO_, CSTS_
+
+;       charactor = ci();
+
+CI_:    cmp     lastch,0        ;saved char
+        jz      doci
+        mov     al,lastch       ;return last char
+        mov     lastch,0
+        mov     ah,0
+        ret
+doci:   mov     ah,direct_input ;code for direct console input
+        int     ibm
+        mov     ah,0            ;make an int
+        ret
+
+
+;       charactor or zero = csts();
+
+CSTS_:  mov     ah,direct_code  ;code for direct console io
+        mov     dl,0ffh         ;want a char
+        int     ibm
+        mov     lastch,al       ;save character
+        mov     ah,0            ;make an int
+        ret
+
+
+;       co(character);
+
+CO_:    pop     ax              ;return address
+        pop     dx
+        push    dx
+        push    ax
+        mov     ah,direct_code  ;want a direct console output
+        int     ibm
+        ret
+
+
+
+
+;       memory management functions: _memory, _showsp, _setsp
+
+        public  _MEMORY_,_SETSP_,_SHOWSP_
+
+_MEMORY_:mov    ax,memfrom      ;address of first free byte of memory
+        ret
+
+_SHOWSP_:pop    dx              ;return address
+        mov     ax,sp           ;return sp value to user
+        jmp     dx
+
+_SETSP_:
+        pop     dx              ;chop the stack - dangerous operation
+        pop     bx              ;new sp value
+        cmp     bp,sp           ;any locals
+        jnz     noc
+        mov     bp,bx           ;must move the bp too
+noc:    mov     sp,bx
+        push    bx
+        jmp     dx
+
+
+;       segment register functions: _showds, _showcs, _setds
+
+        public  _SHOWDS_,_SHOWCS_,_SETDS_
+
+_SHOWDS_:mov    ax,ds           ;ds (and ss) value
+        ret
+
+_SHOWCS_:mov    ax,cs           ;cs value
+        ret
+
+_SETDS_:pop     dx              ;return value
+        pop     ds              ;new ds
+        push    ds
+        jmp     dx              ;return
+
+
+
+
+;       os call used by open, creat etc.
+
+;       value=_os(code,argument);
+
+        public  _OS_
+_OS_:   push    bp
+        mov     bp,sp
+        mov     ah,[bp+4]       ;ibm code
+        mov     dx,[bp+6]       ;argument pointer
+        int     ibm
+        mov     ah,0            ;make return an integer
+        pop     bp
+        ret
+
+        else
+
+        dseg
+
+exitf   rw      64
+
+        cseg
+;       large case setup
+
+        public  _CSETUP,_exit_,exit_,PUTCHAR_,GETCHAR_,PUTS_,MAIN_
+
+;       this is the actual entry point for a c88 program.
+;       the following initialization must take place before a program
+;       is actually called.
+
+;       1)      set sp to highest available byte.
+;       2)      set uninitialized storage to zero.
+;       3)      calculate argc and argv.
+;       4)      set ds to users data area.
+;       5)      call main(argc,argv).
+
+;       if program returns then goto exit.
+
+
+;       set  sp.
+
+_CSETUP:
+        mov     ss:_PCB_,ds     ;save _PCB_ for exit call
+        mov     ax,[2ch]        ;environ
+        mov     ss:environ_,ax
+        mov     ax,ss           ;calculate ss location
+        mov     bx,ss:[0]       ;init memory
+        add     bx,15
+        mov     cl,4
+        shr     bx,cl           ;ds paragraphs
+        add     bx,ss:[2]       ;number os zero segments
+        add     ax,bx           ;new ss
+        inc     ax
+        mov     bx,[2]          ;ibm puts total system paragraphs here
+        cmp     ax,bx           ;see if fits
+
+        jae     not_enough
+        sub     bx,ax           ;number of paras for stack
+        mov     dx,ss:[4]       ;desired stack size
+        shr     dx,cl           ;paras wanted
+        cmp     bx,dx           ;have enough?
+        mov     dx,ss:[4]       ;desired stack size
+        jae     set_stack
+        shl     bx,cl           ;room left
+        mov     dx,bx
+
+set_stack:
+        push    ss              ;set up the real stack
+        pop     es              ; es is left to point at the data segement
+        cli
+        mov     ss,ax
+        mov     sp,dx
+        sti
+
+;       chop memory allocation for both malloc and exec
+
+        push    es
+        mov     cl,4
+        shr     dx,cl           ;dx is paras of stack top
+        add     dx,ax           ;dxbx is max paragraph used
+        mov     bx,dx
+        inc     bx
+        sub     bx,es:_PCB_     ;paras need to keep
+        mov     es,es:_PCB_
+        mov     ah,setblk       ;reduce memory allocated
+        int     ibm
+        pop     es
+
+;       remember version number
+
+        push    es
+        mov     ah,version      ;code to ask for version
+        int     ibm
+        pop     es
+        mov     es:_osmajor_,al
+        mov     es:_osminor_,ah
+        cmp     al,2            ;is it 2 or above ?
+        jb      oldver
+        mov     es:_MSDOS2_,1   ;true if version 2 or above
+        mov     es:vers,al      ;remember version for argv[0]
+oldver:
+
+;       calculate argc and argv. the command tail is between 129 and
+;       255. commnad tail in copied to top of stack and argv vector
+;       is placed under it. the command name is lamentably null.
+
+        mov     byte [255],cr   ;dont fall off end if invalid
+        mov     byte [128],' '  ;dont fall off start either (replaces length)
+        mov     cx,1            ;number of arguments. always (null) command
+        mov     si,-1           ;length of arguments.
+;       find size of tail
+cmd_count:
+        inc     si
+        mov     al,[si+129]     ;next command char
+        cmp     al,cr           ;cr or lf is end of line
+        jz      end_count
+        cmp     al,lf
+        jnz     cmd_count
+end_count:
+        inc     si
+        inc     si
+        and     si,0feh         ;need word alligned stack
+        mov     di,sp           ;remember loc of zero
+        sub     sp,si           ;make room for tail
+        mov     bp,sp           ;bp can address new tail
+        cmp     es:_osmajor_,3  ;3 or above?
+        jb      argvc
+        mov     dx,es
+        mov     es,es:environ_
+        xor     di,di           ;point to environment
+        cld
+        mov     al,0
+scanenv:mov     cx,-1
+  repne scasb                   ;find end of string
+        cmp     byte es:[di],0  ;end of env?
+        jne     scanenv
+        inc     di
+        inc     di
+        inc     di              ;point to name
+        mov     bx,di
+        mov     cx,-1
+  repne scasb
+        mov     cx,di           ;byte past zero
+        sub     cx,bx           ;length + zero
+        inc     cx              ;poss word align
+        and     cl,0feh
+        sub     sp,cx
+        mov     di,bx
+        mov     bx,sp
+namemove:
+        mov     al,es:[di]
+        mov     ss:[bx],al
+        inc     di
+        inc     bx
+        loop    namemove
+        mov     cx,1
+        mov     di,sp
+        mov     es,dx
+argvc:  xor     ax,ax
+        push    ax
+        push    ax
+ntail:  dec     si
+        cmp     si,-1           ;-1 when done
+        jz      save_args
+;       a non white space preceeded by white means another argument
+        mov     al,[si+129]
+        cmp     al,' '          ;see if white
+        jz      white
+        cmp     al,cr
+        jz      white
+        cmp     al,tab
+        jnz     not_white
+white:  mov     al,0            ;set white to null for end of string
+        jmp     stuff
+
+;       is preceeding a white?
+not_white:
+        cmp     byte [si+128],' '
+        jz      new_arg
+        cmp     byte [si+128],tab
+        jnz     stuff
+new_arg:lea     bx,[bp+si]      ;store argv element
+        push    ss
+        push    bx
+        inc     cx              ;increment argc
+stuff:  mov     [bp+si],al      ;put tail char on stack
+        jmp     ntail
+
+;       save a pointer to name or a zero for argv[0]
+save_args:
+        push    ss
+        push    di
+
+;       save    argv and argc
+        mov     bp,sp           ;dont push sp as 286 is different
+
+        push    word es:environ_
+        xor     ax,ax
+        push    ax
+        push    ss
+        push    bp              ;*argv[]
+        push    cx              ;argc
+
+;       set ds to correct value
+
+        mov     ax,es
+        mov     ds,ax
+
+;       initialize uninitialized memory to zero
+
+        mov     dx,[0]          ;size of initialized in bytes
+        mov     bx,[2]          ;number of paragraphs to zero
+        xor     ax,ax
+        cld
+zero_mem:
+        mov     di,dx
+        mov     cx,8            ;do one para at a time
+rep     stosw
+        mov     di,es           ;increment es
+        inc     di
+        mov     es,di
+        dec     bx
+        jnz     zero_mem
+
+
+;       now ready for main
+
+        lcall   MAIN_           ;and do the program
+
+;       fall into exit if return
+
+        mov     rcode,0         ;set return code to zero
+        jmp     efun
+
+;       atexit(fun)
+
+        public  atexit_
+atexit_:push    bp
+        mov     bp,sp
+        mov     bx,exitc
+        cmp     bl,128
+        je      aterr
+        mov     ax,[bp+6]
+        mov     dx,[bp+8]
+        mov     exitf[bx],ax
+        mov     exitf[bx+2],dx
+        add     bx,4
+        mov     exitc,bx
+        xor     ax,ax
+        pop     bp
+        lret
+aterr:  mov     al,1
+        pop     bp
+        lret
+
+;       exit()
+
+exit_:  pop     ax              ; return addr
+        pop     ax
+        pop     rcode           ; return code
+efun:   mov     bx,exitc        ; # exit functions
+        or      bx,bx           ; test for eol
+        jz      cfile           ; eol
+        sub     bx,4
+        mov     exitc,bx        ; next element
+        push    cs
+        mov     ax,offset efun  ; return address
+        push    ax
+        ljmp    dword exitf[bx]
+        public  closeall_
+cfile:  lcall   closeall_
+        mov     ax,rcode
+        jmp     do_exit
+
+;       _exit();
+
+_exit_: pop     ax              ;retrieve return code
+        pop     ax
+        pop     ax
+do_exit:                        ;in dos 2.0 use code 4c to terminate
+                                ;as this allows an error code
+        cmp     _MSDOS2_,0      ;dos 1.0 ?
+        jz      oldend
+        mov     ah,terminate    ;doc 2.0 terminate code
+        int     ibm
+
+
+oldend: push    _PCB_           ;create a long return to _PCB_:0
+        mov     ax,0
+        push    ax
+        lret
+
+not_enough:
+        mov     ax,&ne_msg
+        push    ss
+        push    ax
+        lcall   PUTS_
+        add     sp,2
+        mov     al,2            ;error exit
+        jmp     do_exit
+
+
+;       charactor = getchar();
+
+GETCHAR_:
+        cmp     lastch,0        ;saved char
+        jz      dogc
+glast:  mov     al,lastch       ;return last char
+        mov     lastch,0
+        jmp     gotin
+dogc:   mov     ah,ci_code      ;code for echoed input
+        int     ibm             ;do the console read
+gotin:  mov     ah,0            ;return a word
+        cmp     al,26           ;control z ?
+        jz      readnfg
+        lret                    ;character is in al
+readnfg:mov     ax,-1           ;-1 if eof
+        lret
+
+
+;       putchar(character);
+
+PUTCHAR_:pop    ax              ;return address
+        pop     bx
+        pop     dx              ;dl is character
+        push    dx
+        push    bx
+        push    ax
+        cmp     dl,lf           ;must change lf to cr,lf
+        jnz     xco
+ps_end: mov     dl,cr           ;print the cr first
+        lcall   xco
+        mov     dl,lf           ;put the lf back
+xco:    mov     ah,co_code
+        int     ibm             ;do the write
+        mov     ah,co_code
+        lret
+
+
+;       puts(string address);
+
+PUTS_:  pop     ax              ;return address
+        pop     cx
+        pop     bx              ;string address
+        pop     es
+        push    es
+        push    bx
+        push    cx
+        push    ax
+ps_lp:  mov     al,es:[bx]              ;next char
+        or      al,al
+        jz      ps_end          ;zero at end of string
+        push    es
+        push    bx
+        push    ax              ;char
+        lcall   PUTCHAR_        ;let putchar turn lf into cr,lf
+        add     sp,2
+        pop     bx
+        pop     es
+        inc     bx              ;string pointer
+        jmp     ps_lp
+
+
+
+
+
+        public  CI_, CO_, CSTS_
+
+;       charactor = ci();
+
+CI_:    cmp     lastch,0        ;saved char
+        jz      doci
+        mov     al,lastch       ;return last char
+        mov     lastch,0
+        mov     ah,0
+        lret
+doci:   mov     ah,direct_input ;code for direct console input
+        int     ibm
+        mov     ah,0            ;make an int
+        lret
+
+
+;       charactor or zero = csts();
+
+CSTS_:  mov     ah,direct_code  ;code for direct console io
+        mov     dl,0ffh         ;want a char
+        int     ibm
+        mov     lastch,al       ;save character
+        mov     ah,0            ;make an int
+        lret
+
+
+;       co(character);
+
+CO_:    pop     ax              ;return address
+        pop     bx
+        pop     dx
+        push    dx
+        push    bx
+        push    ax
+        mov     ah,direct_code  ;want a direct console output
+        int     ibm
+        lret
+
+
+
+
+;       memory management functions: _memory, _showsp, _setsp
+
+        public  _SETSP_,_SHOWSP_
+
+_SHOWSP_:
+        mov     ax,sp
+        add     ax,4
+        lret
+
+_SETSP_:
+        pop     dx              ;chop the stack - dangerous operation
+        pop     cx
+        pop     bx              ;new sp value
+        cmp     bp,sp           ;any locals
+        jnz     noc
+        mov     bp,bx           ;must move the bp too
+noc:    mov     sp,bx
+        push    bx
+        push    cx
+        push    dx
+        lret
+
+
+;       segment register functions: _showds, _showcs, _setds, _showss
+
+        public  _SHOWDS_,_SHOWCS_,_SETDS_,_showss_
+
+_SHOWDS_:mov    ax,ds           ;ds value
+        lret
+
+_SHOWCS_:mov    ax,cs           ;cs value
+        lret
+
+_showss_:mov    ax,ss           ;ss value
+        lret
+
+_SETDS_:pop     dx              ;return value
+        pop     bx
+        pop     ds              ;new ds
+        push    ds
+        push    bx
+        push    dx
+        lret
+
+
+
+
+;       os call used by open, creat etc.
+
+;       value=_os(code,argument);
+
+        public  _OS_
+_OS_:   push    bp
+        mov     bp,sp
+        push    ds
+        mov     ah,[bp+6]       ;ibm code
+        mov     dx,[bp+8]       ;argument pointer
+        mov     ds,[bp+10]      ;ds:dx is pointer
+        int     ibm
+        mov     ah,0            ;make return an integer
+        pop     ds
+        pop     bp
+        lret
+
+        endif

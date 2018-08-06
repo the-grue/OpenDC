@@ -1,0 +1,318 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+        include "config.h"
+;       malloc.a   allocate routines for c library
+
+        if      model == 0
+        
+free    equ     9dh                     ;magic number for free segment
+used    equ     0abh                    ;magic number for allocated segment
+nomo    equ     0c6h                    ;magic number for no more
+
+mclass  equ     byte [bx]               ;used to reference magic number
+msize   equ     word [bx+1]             ;size of segment
+        dseg
+
+memfrom         dw      0               ;first free byte of memory
+memnext         dw      0               ;try to alloc from here
+        cseg
+        public  malloc_,free_,realloc_,calloc_,_memory_,freeall_
+
+;       freeall  --  free all of memory. the argument is size for stack.
+
+freeall_:
+        call    _memory_                ;returns free address in ax
+        pop     dx                      ;return address
+        pop     cx                      ;stack  size
+        push    cx
+        push    dx
+        mov     dx,sp                   ;calculate max size free
+        sub     dx,ax
+        jc      fail
+        sub     dx,cx                   ;needed stack
+        jc      fail
+        sub     dx,4                    ;overhead
+        jbe     fail
+        mov     memfrom,ax              ;have some memory
+        mov     memnext,ax
+        mov     bx,ax
+        mov     mclass,free             ;one free segment
+        mov     msize,dx                ;bytes free
+        mov     ax,dx                   ;return free size
+        add     bx,dx                   ;get address of stopper
+        add     bx,3
+        mov     mclass,nomo             ;byte for end
+        ret
+
+fail:   xor     ax,ax                   ;ax=0 is failure for all
+        ret
+
+
+;       malloc  --  allocate memory.
+
+malloc_:cmp     memfrom,0               ;first call ?
+        jnz     is_setup                ;memory chain is set up
+        mov     ax,1024                 ;leave 1024 bytes for stack
+        push    ax                      ;call 
+        call    freeall_                ;free all memory
+        or      ax,ax
+        pop     ax
+        jz      fail
+is_setup:
+        pop     dx                      ;return address
+        pop     cx                      ;bytes needed
+        push    cx
+        push    dx
+        mov     bx,memnext              ;next segment
+        mov     di,memnext              ;remember starting point
+nextt:  mov     al,mclass               ;class of this one
+        cmp     al,free                 ;free segment ?
+        jnz     try_next
+        cmp     msize,cx                ;big enough
+        jc      too_small
+
+        mov     mclass,used             ;allocated segment
+        mov     ax,msize                ;see if can split
+        lea     dx,[bx+3]               ;address of area to use
+        sub     ax,cx                   ;extra room
+        cmp     ax,6                    ;split segment ?
+        jbe     mquit                   ;dont bother.
+        mov     si,cx                   ;remember needed size
+        xchg    msize,cx                ;set segment to proper size
+        add     bx,si                   ;set bx to describe free one
+        add     bx,3
+        mov     mclass,free             ;free segment
+        mov     memnext,bx              ;try this guy next
+        sub     cx,si                   ;left over space
+        sub     cx,3
+        mov     msize,cx
+
+mquit:  mov     ax,dx                   ;return segment address
+        ret
+
+;       see if can add next to this one
+
+too_small:
+        lea     si,[bx+3]               ;get address of next
+        add     si,msize
+        cmp     byte [si],free          ;two free ones ?
+        jnz     try_next
+        mov     ax,[si+1]               ;size of next
+        add     ax,3                    ;plus 3
+        add     msize,ax                ;added to old one
+        cmp     si,di                   ;at starting point ?
+        jnz     nextt
+        add     di,[si+1]               ;bump starting point
+        add     di,3
+        mov     memnext,di
+        jmp     nextt
+
+try_next:
+        add     bx,msize                ;bump to next
+        add     bx,3
+        cmp     al,nomo                 ;any more segments ?
+        jnz     no_wrap
+        mov     bx,memfrom
+no_wrap:
+        cmp     bx,di                   ;wrapping around ?
+        jnz     nextt
+mfail:  xor     ax,ax                   ;failed allocate
+        ret
+
+
+;       free --  free a memory segment
+
+free_:  pop     dx                      ;return address
+        pop     bx                      ;address of seg
+        push    bx
+        push    dx
+        sub     bx,3                    ;point to dope vector
+        cmp     mclass,used             ;muse be allocated
+        jnz     mfail
+        mov     mclass,free
+        mov     ax,1                    ;return non-zero on success
+        ret
+
+;       realloc  --  reallocate a segment.
+
+realloc_:push   bp
+        mov     bp,sp
+        push    [bp+6]                  ;new size
+        call    malloc_                 ;allocate new
+        pop     cx                      ;new size
+        or      ax,ax                   ;see if failed
+        jz      rfail
+        mov     si,[bp+4]               ;pointer
+        mov     byte [si-3],free        ;free old one
+        mov     di,ax                   ;new segment
+        push    ds
+        pop     es
+        cld
+rep     movsb                           ;move contents
+        pop     bp
+        ret                             ;ax is address of new one
+rfail:  pop     bp
+        xor     ax,ax
+        ret
+
+
+;       calloc(nelen,elsize)  --  allocate and zero for an array.
+
+calloc_:push    bp
+        mov     bp,sp
+        mov     ax,[bp+4]               ;number of elements
+        mul     word [bp+6]             ;bytes in each
+        push    ax
+        call    malloc_                 ;try to allocate
+        pop     cx                      ;length
+        or      ax,ax
+        jz      rfail
+        mov     di,ax                   ;zero target
+        push    ds
+        pop     es
+        cld
+        mov     dx,ax                   ;save start
+        mov     al,0                    ;zero to store
+rep     stosb
+        mov     ax,dx                   ;address of start
+        pop     bp
+        ret
+
+
+        else
+        
+;       lmalloc.a   allocate routines for c library (big model)
+
+free    equ     9dh                     ;magic number for free segment
+used    equ     0abh                    ;magic number for allocated segment
+nomo    equ     0c6h                    ;magic number for no more
+
+mclass  equ     byte [bx]               ;used to reference magic number
+msize   equ     word [bx+1]             ;size of segment
+ibm     equ     21h
+        dseg
+
+        cseg
+        public  malloc_,free_,realloc_,calloc_
+
+;       malloc  --  allocate memory.
+
+malloc_:
+        push    bp
+        mov     bp,sp
+        mov     bx,[bp+pbase]           ; size in bytes
+        mov     al,bl                   ; remember if fraction of paragraph
+        mov     cl,4
+        shr     bx,cl                   ; in paragraphs
+        test    al,15                   ; see if fraction
+        jz      big_malloc
+        inc     bx
+big_malloc:
+        mov     ah,48h
+        int     ibm
+        jc      ma_error
+        mov     es,ax
+        xor     si,si
+        pop     bp
+        lret
+ma_error:
+        xor     si,si
+        mov     es,si
+        pop     bp
+        lret
+
+;       free --  free a memory segment
+
+free_:
+        push    bp
+        mov     bp,sp
+        mov     es,[bp+pbase+2]         ; segment portion
+        mov     ah,49h
+        int     ibm
+        jc      fr_error
+        xor     ax,ax
+fr_error:
+        pop     bp
+        lret
+
+
+;       realloc  --  reallocate a segment.
+
+realloc_:
+        push    bp
+        mov     bp,sp
+        mov     es,[bp+pbase+2]         ; segment portion of pointer
+        mov     bx,[bp+pbase+4]         ; new size in bytes
+        add     bx,15
+        mov     cl,4
+        shr     bx,cl                   ; in paragraphs
+        mov     ah,4ah
+        int     ibm
+        jc      ra_error
+        les     si,[bp+pbase]           
+        pop     bp
+        lret
+ra_error:
+        push    [bp+pbase+4]            ; try a malloc
+        lcall   malloc_
+        add     sp,2
+        mov     es,ax                   ; see if failed
+        or      ax,ax
+        jz      ra_fail
+        push    ds
+        mov     ds,[bp+pbase+2]         ; move contents
+        mov     di,0
+        mov     cx,[bp+pbase+4]         ; length
+        cld
+rep     movsb
+        push    es
+        push    ds                      ; free old segment
+        mov     ax,0
+        push    ax
+        lcall   free_
+        add     sp,4
+        pop     es
+        pop     ds
+        mov     si,0                    ; new one at es:si
+        pop     bp
+        lret
+ra_fail:
+        xor     si,si
+        mov     es,si
+        pop     bp
+        lret
+
+
+;       calloc(nelen,elsize)  --  allocate and zero for an array.
+
+calloc_:push    bp
+        mov     bp,sp
+        mov     ax,[bp+pbase]           ;number of elements
+        mul     word [bp+pbase+2]       ;bytes in each
+        push    ax
+        lcall   malloc_                 ;try to allocate
+        pop     cx                      ;length
+        mov     ax,es
+        or      ax,ax
+        jz      ra_fail
+        mov     di,si                   ;zero target
+        cld
+        mov     al,0                    ;zero to store
+rep     stosb
+        pop     bp
+        lret
+
+        endif

@@ -1,0 +1,85 @@
+#
+# Makefile for all of the tools on this disk
+#  simply 
+
+$C88FLAGS -td -c
+
+tools	[ more.exe rm.exe ls.exe  free.exe grep.exe
+			pcmake.exe fastscr.exe merge.exe toolbox.s ]
+
+#
+# more
+#
+more.exe	[ more.o toolbox.s ]
+	bind more toolbox.s  -s3000
+
+more.o
+
+#
+# rm
+#
+rm.exe	[ rm.o toolbox.s ]
+	bind rm toolbox.s -s2000
+
+rm.o
+
+#
+# ls
+#
+ls.exe	[ ls.o ]
+	bind ls -s2000
+
+ls.o
+
+#
+# free
+#
+free.exe	[ free.o ]
+	bind free -s200
+
+free.o
+
+#
+# grep
+#
+grep.exe [ grep.o toolbox.s ]
+	bind grep toolbox.s -s2000
+
+grep.o
+
+
+#
+# fastscr
+#
+fastscr.exe [ fastscr.o ]
+	bind fastscr -a -s100
+
+fastscr.o
+
+#
+# pcmake
+#
+pcmake.exe
+pcmake.o
+
+#
+# toolbox.s
+#
+
+toolbox.s [ findfile.o
+			environ.o  
+			linein.o
+			line2.o
+			main.o ]
+			lib88 findfile environ linein line2 main -otoolbox.s
+
+findfile.o
+environ.o
+linein.o
+line2.o
+main.o
+
+merge.exe [ merge.o toolbox.s ]
+	bind merge toolbox.s -s2000
+
+merge.o

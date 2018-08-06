@@ -1,0 +1,29 @@
+
+
+                MORE: a file screen listing program.
+
+
+       more is a program used to view text files.  This version is
+       slightly more sophisticated than the program which is delivered
+       with PC-DOS.  It includes the ability to search for a given
+       string.  The syntx for more is:
+
+         more file ...
+
+       where file may contain wildcard characters.
+
+
+       when the program pauses and displays the --MORE-- prompt, you 
+       have a number of choices:
+
+          Q  terminates the program.
+
+          / <pattern> searches for a line with the given pattern.
+            if the pattern is not found, the --MORE-- prompt is 
+            redisplayed.
+
+          N finds the next line with the same pattern used in the last / 
+            command.
+
+          any other character will simply display the next 22 lines of 
+          the file.

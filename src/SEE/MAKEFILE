@@ -1,0 +1,32 @@
+$C88FLAGS -px -c
+
+s.exe [ s.o pcfast.o ]
+    bind s pcfast -os.exe -pmap -c -_
+
+s.o [ see.o more.o wrap.o screen.o buffer.o block.o 
+			extmem.o dosint.o move.o view.o macro.o ]
+	lib88 see more screen wrap buffer view block extmem macro dosint move exec -os.o -n
+
+see.o [ see.c world.h ]
+
+more.o [ more.c world.h ]
+
+wrap.o [ wrap.c world.h ]
+
+screen.o [ screen.c world.h ]
+
+buffer.o [ buffer.c world.h ]
+
+block.o [ block.c world.h ]
+
+extmem.o [ extmem.c world.h ]
+
+macro.o [ macro.c world.h ]
+
+dosint.o
+
+pcfast.o
+
+move.o
+
+view.o [ view.c world.h ]

@@ -1,0 +1,73 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+	include "config.h"
+;	8087 version of double exp(x)
+
+	dseg
+treal	db	0,0,0,0,0,0,0,0,0,0
+	cseg
+
+	public	exp_
+
+exp_:
+	push	bp			; standard
+	mov	bp,sp			; prolog
+
+	public	_testinit
+	_call	_testinit
+	FLDL2E				; log2(e)
+	FLD	qword [bp+pbase]	; x
+	FMULP	ST(1),ST		; x * log2(e)
+	FWAIT
+
+	FSTP	tbyte treal		; store the number
+	FWAIT
+	mov	ax,word treal+8		; get the exponent
+	mov	cx,0			; assume less than .5
+	mov	bl,ah			; remember if negative
+	and	ah,7fh			; remove the sign if any
+	mov	dx,3ffdh		; exponent if number from .25 to .5
+	cmp	ax,dx			; is number < .5 ?
+	jbe	numok
+	sub	ax,dx			; power of 2 too big
+	mov	cx,ax
+	mov	ax,dx
+numok:	mov	word treal+8,ax		; reduce the number
+	FLD	tbyte treal		; re-load patched number
+	FWAIT
+
+	F2XM1				; 2**(x * log2(e))-1
+	FWAIT
+
+	FLD1				; 1.0
+	FADDP	ST(1),ST		; e**x = 2**(x * log2(e))
+	FWAIT
+
+	jcxz	adjusted		; must double number cx times
+dbl:	FMUL	ST,ST(0)		; double the number
+	FWAIT
+	loop	dbl
+adjusted:
+
+	test	bl,80h			; was sign on originally ?
+	jz	alldone
+	FLD1				; take reciprocal
+	FWAIT
+	FDIVR
+	FWAIT
+alldone:
+	pop	bp			; standard
+	_ret				; epilog

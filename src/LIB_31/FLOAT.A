@@ -1,0 +1,1263 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+        include "config.h"
+;       float.a  --             floating point main module for c
+
+
+plus    equ     0
+minus   equ     80h
+zero    equ     -30000
+
+        dseg
+        public  _tos,errno_:word
+
+_tos    dw      -2
+_sign   db      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+_exp    dw      0,0,0,0,0,0,0,0
+mana    dw      0,0,0,0,0,0,0,0
+manb    dw      0,0,0,0,0,0,0,0
+manc    dw      0,0,0,0,0,0,0,0
+mand    dw      0,0,0,0,0,0,0,0
+mula    dw      0
+mulb    dw      0
+mulc    dw      0
+muld    dw      0
+
+;       useful constants
+
+        public _one,_ten,_tenth,_million,_millionth
+_one    db      0,0,0,0,0,0,0f0h,3fh
+_ten    db      0,0,0,0,0,0,24h,40h
+_tenth  db      9ah,99h,99h,99h,99h,99h,0b9h,3fh
+_million db     0,0,0,0,80h,84h,2eh,41h
+_millionth db   8dh,0edh,0b5h,0a0h,0f7h,0c6h,0b0h,3eh
+
+        cseg
+        public  rerrno_
+
+
+;       _floadd --      load a floating point double precision.
+
+        public  _floadd
+_floadd:push    di
+        push    si
+        push    dx
+        push    cx
+        push    bx
+        push    ax
+        add     _tos,2                  ;another element of stack
+        mov     bx,_tos
+        cmp     bx,16                   ;too many entries?
+        jnc     bad_fp
+        if      model
+        mov     ax,es:[si+6]            ;float is at es:si. get sign etc.
+        else
+        mov     ax,[si+6]               ;float is at si. get sign etc.
+        endif
+        mov     cl,ah
+        and     cl,minus                ;isolate sign bit
+        mov     _sign[bx],cl            ;and put away
+        mov     cx,ax                   ;get mantissa bits 2 to 5
+        and     cx,15
+        or      cl,10000b               ;add implied bit
+        mov     mana[bx],cx             ;store first word of mantissa
+        mov     cl,4
+        shr     ax,cl                   ;rotate exponent to low part
+        and     ax,7ffh                 ;want 11 bits only
+        or      ax,ax                   ;if zero, number is zero
+        jz      zero_input
+        sub     ax,3ffh                 ;remove bias
+        mov     _exp[bx],ax             ;put exponent away
+        if      model
+        mov     ax,es:[si]              ;low word of number
+        else
+        mov     ax,[si]                 ;low word of number
+        endif
+        mov     mand[bx],ax             ;put away
+        if      model
+        mov     ax,es:[si+2]            ;next word
+        else
+        mov     ax,[si+2]               ;next word
+        endif
+        mov     manc[bx],ax
+        if      model
+        mov     ax,es:[si+4]            ;next word
+        else
+        mov     ax,[si+4]               ;next word
+        endif
+        mov     manb[bx],ax
+        jmp     lfret
+zero_input:
+        mov     _exp[bx],zero           ;exponent zero means number is zero
+        mov     _sign[bx],0             ;positive
+lfret:  pop     ax
+        pop     bx
+        pop     cx
+        pop     dx
+        pop     si
+        pop     di
+        _ret
+
+bad_fp: mov     errno_,30               ;impossible operation
+        _call   rerrno_
+        add     sp,12
+        _ret
+
+
+
+;       _floade  --     load a single precision number.
+
+        public  _floade
+_floade:push    di
+        push    si
+        push    dx
+        push    cx
+        push    bx
+        push    ax
+        add     _tos,2                  ;another element of stack
+        mov     bx,_tos
+        cmp     bx,16                   ;too many entries?
+        jnc     bad_fp
+        if      model
+        mov     ax,es:[si+2]            ;float is at es:si. get sign etc.
+        else
+        mov     ax,[si+2]               ;float is at si. get sign etc.
+        endif
+        mov     cl,ah
+        and     cl,minus                ;isolate sign bit
+        mov     _sign[bx],cl            ;and put away
+        mov     dx,ax                   ;get exponent
+        shl     dx,1                    ;exp in ch
+        or      dh,dh                   ;if zero then zero
+        jz      zero_input
+        mov     dl,dh                   ;put exp into dx
+        mov     dh,0
+        sub     dx,7fh+3                ;remove offset exp in dx
+        or      al,80h                  ;add in hidden bit
+        mov     ah,0                    ;hi word of exp
+        mov     mana[bx],ax
+        if      model
+        mov     ax,es:[si]              ;low word of number
+        else
+        mov     ax,[si]                 ;low word of number
+        endif
+        mov     manb[bx],ax             ;stord away
+        mov     manc[bx],0              ;rest is zero
+        mov     mand[bx],0
+        mov     di,bx                   ;number to normalize
+        jmp     normalize               ;normalize number
+
+
+;       _floadl  --     load a long into the fa. from dx:ax
+
+        public  _floadl
+_floadl:push    di
+        push    si
+        push    dx
+        push    cx
+        push    bx
+        push    ax
+        add     _tos,2                  ;another element of stack
+        mov     bx,_tos
+        cmp     bx,16                   ;too many entries?
+        jnc     bad_fp
+        mov     cx,ax                   ;see if zero
+        or      cx,dx
+        jz      zero_input
+        mov     cl,0                    ;assume positive
+        or      dx,dx
+        jns     plusi
+        not     dx                      ;flip sign
+        neg     ax
+        sbb     dx,-1
+        mov     cl,minus
+plusi:  mov     _sign[bx],cl            ;and put away
+        mov     cx,20                   ;assume big integer
+        or      dx,dx                   ;is it ?
+        jnz     bigi                    ;yes
+        mov     dx,ax                   ;shift up by 2**16
+        mov     ax,0
+        mov     cx,4                    ;reduce exponent
+bigi:   mov     mana[bx],dx             ;put number away
+        mov     manb[bx],ax
+        mov     manc[bx],0              ;zero rest
+        mov     mand[bx],0
+        mov     di,bx                   ;must index with di
+        mov     dx,cx                   ;and have exp in dx
+        jmp     normalize               ;normalize number
+
+
+
+;       _floadb  --     load bits at [si] into tos.
+
+        public  _floadb
+_floadb:cld
+        mov     bx,_tos
+        if      model
+        mov     al,es:[si]
+        inc     si
+        mov     _sign[bx],al
+        mov     ax,es:[si]
+        inc     si
+        inc     si
+        mov     _exp[bx],ax
+        mov     ax,es:[si]
+        inc     si
+        inc     si
+        mov     mana[bx],ax
+        mov     ax,es:[si]
+        inc     si
+        inc     si
+        mov     manb[bx],ax
+        mov     ax,es:[si]
+        mov     manc[bx],ax
+        lodsw
+        mov     mand[bx],ax
+        else
+        lodsb
+        mov     _sign[bx],al
+        lodsw
+        mov     _exp[bx],ax
+        lodsw
+        mov     mana[bx],ax
+        lodsw
+        mov     manb[bx],ax
+        lodsw
+        mov     manc[bx],ax
+        lodsw
+        mov     mand[bx],ax
+        endif
+        _ret
+
+
+
+;       _fpush    --    push a double precision number.
+
+        public  _fpush
+_fpush:
+        sub     sp,6                    ;leave room on stack
+        push    bp                      ;need to retrieve return address
+        mov     bp,sp
+        push    si
+        if      model
+        mov     si,ss                   ;need on stack
+        mov     es,si
+        mov     si,[bp+10]
+        mov     [bp+2],si
+        endif
+        mov     si,[bp+8]               ;retrieve return address
+        xchg    [bp],si                 ;put return back on stack
+        xchg    bp,si                   ;reset bp
+        if      model
+        add     si,4                    ;place to put number
+        else
+        add     si,2                    ;place to put number
+        endif
+        _call   _fstored
+        pop     si
+        _ret
+
+
+
+;       _fstored  --    store a double precision number.
+
+        public  _fstored
+_fstored:
+        push    di
+        push    si
+        push    dx
+        push    cx
+        push    bx
+        push    ax
+        mov     bx,_tos
+        or      bx,bx                   ;see if bad
+        js      bad_fp
+        sub     _tos,2                  ;remove from stack
+        mov     ax,_exp[bx]             ;exponent of number
+        cmp     ax,zero                 ;see if zero
+        jz      stuff_zero
+        add     ax,3ffh                 ;add bias back
+        js      stuff_zero              ;have an underflow
+        cmp     ax,7ffh                 ;too big?
+        ja      overflow
+        mov     cl,4                    ;must move exp over
+        shl     ax,cl
+        or      ah,_sign[bx]            ;add in sign bit
+        mov     cl,byte mana[bx]        ;get 4 bits from mantissa
+        and     cl,15
+        or      al,cl                   ;add to high word
+        if      model
+        mov     es:[si+6],ax            ;destination is at si
+        else
+        mov     [si+6],ax               ;destination is at si
+        endif
+        mov     ax,manb[bx]             ;copy low 3 words
+        if      model
+        mov     es:[si+4],ax
+        else
+        mov     [si+4],ax
+        endif
+        mov     ax,manc[bx]
+        if      model
+        mov     es:[si+2],ax
+        else
+        mov     [si+2],ax
+        endif
+        mov     ax,mand[bx]
+        if      model
+        mov     es:[si],ax
+        else
+        mov     [si],ax
+        endif
+        pop     ax
+        pop     bx
+        pop     cx
+        pop     dx
+        pop     si
+        pop     di
+        _ret
+
+stuff_zero:                             ;value is a zero
+        xor     ax,ax                   ;set all to zero
+        if      model
+        mov     es:[si],ax
+        mov     es:[si+2],ax
+        mov     es:[si+4],ax
+        mov     es:[si+6],ax
+        else
+        mov     [si],ax
+        mov     [si+2],ax
+        mov     [si+4],ax
+        mov     [si+6],ax
+        endif
+        pop     ax
+        pop     bx
+        pop     cx
+        pop     dx
+        pop     si
+        pop     di
+        _ret
+
+;       report an overflow. return a big number.
+
+overflow:
+        push    bx
+        push    si
+        if      model
+        push    es
+        endif
+        mov     errno_,31
+        _call   rerrno_
+        if      model
+        pop     es
+        endif
+        pop     si
+        pop     bx
+        mov     ax,7fffh                ;big exponent
+        or      ah,_sign[bx]            ;make the correct sign
+        if      model
+        mov     es:[si+6],ax            ;return
+        else
+        mov     [si+6],ax               ;return
+        endif
+        mov     ax,0ffffh               ;mantissa all ones
+        if      model
+        mov     es:[si+4],ax
+        else
+        mov     [si+4],ax
+        endif
+        if      model
+        mov     es:[si+2],ax
+        else
+        mov     [si+2],ax
+        endif
+        if      model
+        mov     es:[si],ax
+        else
+        mov     [si],ax
+        endif
+        pop     ax
+        pop     bx
+        pop     cx
+        pop     dx
+        pop     si
+        pop     di
+        _ret
+
+
+;       _fstoree  --    store a single precision number.
+
+        public  _fstoree
+_fstoree:
+        push    di
+        push    si
+        push    dx
+        push    cx
+        push    bx
+        push    ax
+        mov     bx,_tos
+        or      bx,bx                   ;see if bad
+        js      bad_fp
+        sub     _tos,2                  ;remove from stack
+        mov     ax,_exp[bx]             ;exponent of number
+        cmp     ax,zero                 ;see if zero
+        jz      stuff_zeroe
+        add     ax,082h                 ;add bias back
+        js      stuff_zeroe             ;have an underflow
+        cmp     ax,0ffh                 ;too big?
+        ja      overflowe
+        mov     cl,byte mana[bx]        ;load mantissa
+        mov     dx,manb[bx]
+        mov     di,manc[bx]
+        add     di,1000h                ;round number up
+        adc     dx,0
+        adc     cl,0
+rste:   shl     di,1                    ;shift man up
+        rcl     dx,1
+        rcl     cl,1
+        dec     ax                      ;reduce exponent
+        jz      stuff_zeroe
+        test    cl,80h
+        jz      rste
+        ror     ax,1                    ;make room for sign
+        and     ah,80h                  ;low exp bit is here
+        and     cl,7fh                  ;remove hidden bit
+        or      ah,cl                   ;add exp bit to hi man
+        or      al,_sign[bx]            ;add in sign bit
+        xchg    al,ah
+        if      model
+        mov     es:[si+2],ax            ;put number away
+        else
+        mov     [si+2],ax               ;put number away
+        endif
+        if      model
+        mov     es:[si],dx
+        else
+        mov     [si],dx
+        endif
+        pop     ax
+        pop     bx
+        pop     cx
+        pop     dx
+        pop     si
+        pop     di
+        _ret
+
+;       report an overflow. return a big number.
+
+overflowe:
+        push    bx
+        push    si
+        if      model
+        push    es
+        endif
+        mov     errno_,31
+        _call   rerrno_
+        if      model
+        pop     es
+        endif
+        pop     si
+        pop     bx
+        mov     ax,7fffh                ;big exponent
+        or      ah,_sign[bx]            ;make the correct sign
+        if      model
+        mov     es:[si+2],ax            ;return
+        else
+        mov     [si+2],ax               ;return
+        endif
+        mov     ax,0ffffh               ;mantissa all ones
+        if      model
+        mov     es:[si],ax
+        else
+        mov     [si],ax
+        endif
+        pop     ax
+        pop     bx
+        pop     cx
+        pop     dx
+        pop     si
+        pop     di
+        _ret
+
+stuff_zeroe:                            ;value is a zero
+        xor     ax,ax                   ;set all to zero
+        if      model
+        mov     es:[si],ax
+        else
+        mov     [si],ax
+        endif
+        if      model
+        mov     es:[si+2],ax
+        else
+        mov     [si+2],ax
+        endif
+        pop     ax
+        pop     bx
+        pop     cx
+        pop     dx
+        pop     si
+        pop     di
+        _ret
+
+
+
+;       _fstorel  --    put a long into dx:ax.
+
+        public  _fstorel
+_fstorel:
+        push    si
+        push    cx
+        push    bx
+        mov     bx,_tos
+        sub     sp,6
+        or      bx,bx                   ;see if bad
+        js      bad_fp
+        add     sp,6
+        sub     _tos,2                  ;remove from stack
+        mov     si,_exp[bx]             ;exponent of number
+        cmp     si,zero                 ;see if zero
+        jz      stuff_zerol
+        cmp     si,0                    ;a fraction is a zero
+        jl      stuff_zerol
+        cmp     si,32
+        jae     overflowl
+
+        mov     dh,0
+        mov     dl,byte mana[bx]        ;load mantissa
+        mov     ax,manb[bx]
+        mov     cx,manc[bx]
+        cmp     si,16                   ;is it big ?
+        jae     gigl
+        add     si,16
+        mov     cx,ax                   ;move number down
+        mov     ax,dx                   ;move number down
+        mov     dx,0
+gigl:   cmp     si,20                   ;exp when done
+        jz      gotl
+        jb      downl
+        shl     cx,1                    ;mode integer up
+        rcl     ax,1
+        rcl     dx,1
+        dec     si
+        jmp     gigl
+downl:  shr     dx,1                    ;move number down
+        rcr     ax,1
+        inc     si
+        jmp     gigl
+gotl:   test    _sign[bx],minus
+        jz      plusl
+        not     dx                      ;flip sign
+        neg     ax
+        sbb     dx,-1
+plusl:  pop     bx
+        pop     cx
+        pop     si
+        _ret
+
+
+;       return a zero long
+
+stuff_zerol:                            ;have a zero long
+        xor     dx,dx
+        xor     ax,ax
+        pop     bx
+        pop     cx
+        pop     si
+        _ret
+
+
+;       report an overflow. return a big number.
+
+overflowl:
+        push    bx
+        mov     errno_,31
+        _call   rerrno_
+        pop     bx
+        mov     dx,7fffh                ;big exponent
+        or      dh,_sign[bx]            ;make the correct sign
+        mov     ax,0ffffh
+        pop     bx
+        pop     cx
+        pop     si
+        _ret
+
+
+;       _fstoreb  --    store the fac as bits.
+
+        public  _fstoreb
+_fstoreb:
+        if      !model
+        mov     ax,ds
+        mov     es,ax
+        endif
+        cld
+        mov     bx,_tos
+        mov     al,_sign[bx]
+        stosb
+        mov     ax,_exp[bx]
+        stosw
+        mov     ax,mana[bx]
+        stosw
+        mov     ax,manb[bx]
+        stosw
+        mov     ax,manc[bx]
+        stosw
+        mov     ax,mand[bx]
+        stosw
+        _ret
+
+
+
+;       _fxch  --       exchange fac and fac+1
+
+        public  _fxch
+_fxch:  push    si                      ;clean routine
+        push    cx
+        push    ax
+        mov     si,_tos
+        mov     al,_sign[si]            ;switch the sign
+        xchg    _sign[si-2],al
+        mov     _sign[si],al
+        add     si,offset _exp          ;address of tos exponent
+        mov     cx,5                    ;6 fields in a number
+nxch:   mov     ax,[si]                 ;tos sign, exp or mantissa
+        xchg    [si-2],ax               ;tos+1 now tos value
+        mov     [si],ax                 ;tos now ros+1 value
+        add     si,16                   ;8 words per exp etc.
+        loop    nxch                    ;get next field
+        pop     ax
+        pop     cx
+        pop     si
+        _ret
+
+
+
+;       _fclear  --     clear an element from the floating stack
+
+        public  _fclear
+_fclear:sub     _tos,2                  ;get rid of element
+        _ret
+
+
+
+
+;       _fcmpkeep  --   compare tps-1 and tos. clean tos only.
+
+        public  _fcmpkeep
+_fcmpkeep:
+        _call   _fcmp                   ;do the compare
+        pushf                           ;save the flags
+        add     _tos,2                  ;put tos-1 back
+        popf
+        _ret
+
+
+;       _fcmp  --       compare tos-1 to tos. clean both from stack. return
+;                       flags.
+
+        public  _fcmp
+_fcmp:  push    di
+        push    si
+        push    ax
+        mov     si,_tos                 ;index for top of stack
+        sub     sp,6
+        cmp     si,2                    ;must be at least 2
+        jc      bad_fp
+        add     sp,6
+        lea     di,[si-2]               ;index for top of stack-1
+        sub     _tos,4                  ;clean both off stack
+        mov     al,_sign[di]            ;sign of _tos
+        cmp     al,_sign[si]            ;compared to sign of _tos-1
+        jnz     fcmp_dif
+        or      al,al                   ;if negative, flip operands
+        jz      is_pos
+        xchg    si,di                   ;reverse test for both negative
+is_pos:
+
+        mov     ax,_exp[di]
+        cmp     ax,_exp[si]
+        jnz     fcmp_dif                ;exponents different
+        cmp     ax,zero                 ;comparing zero to zero ?
+        jz      fcmp_don
+        _call   cmp_for_add             ;compare mantissa's
+        jmp     fcmp_don
+fcmp_dif:                               ;turn unsigned comp into signed comp
+        mov     al,1
+        jl      fcmp_les
+        cmp     al,0                    ;force greater than = carry
+        jmp     fcmp_don
+fcmp_les:
+        cmp     al,2                    ;force less than
+fcmp_don:
+        pop     ax
+        pop     si
+        pop     di
+        _ret
+
+
+cmp_for_add:
+        mov     al,byte mana[di]        ;hi byte of mantissa
+        cmp     al,byte mana[si]
+        jnz     fcmp_diff
+        mov     ax,manb[di]             ;mext byte of mantissa
+        cmp     ax,manb[si]
+        jnz     fcmp_done
+        mov     ax,manc[di]             ;mext byte of mantissa
+        cmp     ax,manc[si]
+        jnz     fcmp_done
+        mov     ax,mand[di]             ;mext byte of mantissa
+        cmp     ax,mand[si]
+        _ret
+fcmp_diff:                              ;turn unsigned comp into signed comp
+        mov     al,1
+        jl      fcmp_less
+        cmp     al,0                    ;force greater than = carry
+        _ret
+fcmp_less:
+        cmp     al,2                    ;force less than
+fcmp_done:
+        _ret
+
+
+;       _fneg  --       negate top of stack
+
+        public  _fneg
+_fneg:  push    bx
+        mov     bx,_tos
+        cmp     _exp[bx],zero           ;is value zero?
+        jz      neg_done
+        xor     byte _sign[bx],minus    ;negate
+neg_done:
+        pop     bx
+        _ret
+
+
+;       _fnot  --       return 1 if tos is zero. clear tos.
+
+        public  _fnot
+_fnot:  push    bx
+        mov     bx,_tos
+        sub     _tos,2
+        cmp     _exp[bx],zero           ;is number zero ?
+        jnz     retzero
+        pop     bx
+        mov     ax,1
+        cmp     ax,0
+        _ret
+retzero:pop     bx
+        xor     ax,ax
+        _ret
+
+
+
+;       _fzero  --      return nz if tos is not zero. dont clear tos.
+
+        public  _fzero
+_fzero: push    bx
+        mov     bx,_tos
+        cmp     _exp[bx],zero           ;is number zero ?
+        pop     bx
+        _ret
+
+
+
+;       _fis  --        return nz if tos is non zero. clear tos.
+
+        public  _fis
+_fis:   push    bx
+        mov     bx,_tos
+        sub     _tos,2
+        cmp     _exp[bx],zero           ;is number zero ?
+        pop     bx
+        _ret
+
+
+
+;       _fdec  --       decrement tos.
+
+        public  _fdec
+_fdec:  push    ax
+        push    dx
+        mov     ax,1                    ;load a long one
+        xor     dx,dx
+        _call   _floadl                 ;load it
+        _call   _fsub                   ;and subtract it
+        pop     dx
+        pop     ax
+        _ret
+
+
+
+;       _finc  --       increment tos.
+
+        public  _finc
+_finc:  push    ax
+        push    dx
+        mov     ax,1                    ;load a long one
+        xor     dx,dx
+        _call   _floadl                 ;load it
+        _call   _fadd                   ;and add it
+        pop     dx
+        pop     ax
+        _ret
+
+
+
+
+;       _fsub  --       subtract. _tos-1 = _tos-1 - _tos
+
+        public  _fsub
+_fsub:
+        _call   _fneg                   ;negate _tos
+
+
+;       _fadd  --       add. _tos-1 = _tos-1 + _tos
+
+        public  _fadd
+_fadd:  push    di
+        push    si
+        push    dx
+        push    cx
+        push    bx
+        push    ax
+        mov     si,_tos                 ;_tos pointer
+        sub     _tos,2                  ;pop stack
+        lea     di,[si-2]               ;_tos-1 pointer
+        mov     ax,_exp[si]             ;exp of _tos
+        cmp     ax,zero                 ;if adding zero, all done
+        jz      null_add
+        mov     dx,_exp[di]             ;exp of _tos-1
+        cmp     dx,zero
+        jnz     real_add                ;if adding to zero, just move
+tos_ans:mov     _exp[di],ax             ;new exp
+        mov     al,_sign[si]            ;new sign
+        mov     _sign[di],al
+        mov     ax,mana[si]             ;new mana
+        mov     mana[di],ax
+        mov     ax,manb[si]             ;new manb
+        mov     manb[di],ax
+        mov     ax,manc[si]             ;new manc
+        mov     manc[di],ax
+        mov     ax,mand[si]             ;new mand
+        mov     mand[di],ax
+null_add:
+        pop     ax
+        pop     bx
+        pop     cx
+        pop     dx
+        pop     si
+        pop     di
+        _ret
+
+real_add:                               ;both arguments non zero
+        cmp     ax,dx                   ;compare exponents
+        jz      do_add
+        jg      tos_hi
+        mov     cx,dx
+        sub     cx,ax                   ;difference in exponent
+        cmp     cx,52                   ;if over 52, all done
+        jae     done_add
+        mov     bx,si                   ;must shift _tos
+        jmp     adj_add
+tos_hi: mov     cx,ax
+        sub     cx,dx                   ;exponent difference
+        mov     dx,ax                   ;remember result exp
+        cmp     cx,52
+        jae     tos_ans                 ;answer in _tos
+        mov     bx,di                   ;shift _tos-1
+adj_add:shr     byte mana[bx],1         ;shift mantissa right
+        rcr     manb[bx],1
+        rcr     manc[bx],1
+        rcr     mand[bx],1
+        loop    adj_add
+
+do_add:                                 ;both numbers now same scale
+        mov     al,_sign[si]            ;compare signs
+        cmp     al,_sign[di]
+        jnz     do_sub                  ;really need a subtraction
+        mov     ax,mand[si]             ;add low word
+        add     mand[di],ax
+        mov     ax,manc[si]             ;add next word
+        adc     manc[di],ax
+        mov     ax,manb[si]             ;add next word
+        adc     manb[di],ax
+        mov     al,byte mana[si]        ;add high byte
+        adc     byte mana[di],al
+        jmp     normalize               ;addition done
+
+do_sub: 
+        _call   cmp_for_add             ;see which is bigger
+        jz      store_zero              ;both the same
+        jc      rev_sub                 ;need reverse subtract
+        mov     ax,mand[si]             ;subtract low word
+        sub     mand[di],ax
+        mov     ax,manc[si]             ;subtract next word
+        sbb     manc[di],ax
+        mov     ax,manb[si]             ;subtract next word
+        sbb     manb[di],ax
+        mov     al,byte mana[si]        ;subtract high byte
+        sbb     byte mana[di],al
+        jmp     normalize               ;subtraction done
+
+rev_sub:xor     _sign[di],minus         ;flip sign of result
+        mov     ax,mand[si]             ;subtract low word
+        xchg    mand[di],ax
+        sub     mand[di],ax
+        mov     ax,manc[si]             ;subtract next word
+        xchg    manc[di],ax
+        sbb     manc[di],ax
+        mov     ax,manb[si]             ;subtract next word
+        xchg    manb[di],ax
+        sbb     manb[di],ax
+        mov     al,byte mana[si]        ;subtract high byte
+        xchg    byte mana[di],al
+        sbb     byte mana[di],al
+
+;       normalize _tos-1. addressed by di.
+
+normalize:
+        mov     ax,mana[di]             ;need 5 bits in mana
+        test    ax,0ffe0h               ;any more on?
+        jnz     shift_down
+        test    ax,10000b               ;need 5 on
+        jnz     done_add
+
+;       shift number up
+
+        dec     dx
+        shl     mand[di],1              ;next word
+        rcl     manc[di],1              ;next word
+        rcl     manb[di],1
+        rcl     byte mana[di],1
+        jmp     normalize
+
+;       shift number down
+
+shift_down:
+        inc     dx
+        shr     mana[di],1              ;shift mantissa right
+        rcr     manb[di],1
+        rcr     manc[di],1
+        rcr     mand[di],1
+        jmp     normalize
+
+done_add:                               ;store addition exponent
+        mov     _exp[di],dx
+        pop     ax
+        pop     bx
+        pop     cx
+        pop     dx
+        pop     si
+        pop     di
+        _ret
+
+
+
+
+;       _fdiv  --       divide. _tos-1 = _tos-1 / _tos
+
+        public  _fdiv
+_fdiv:  push    di
+        push    si
+        push    dx
+        push    cx
+        push    bx
+        push    ax
+        mov     si,_tos
+        sub     _tos,2                  ;pop _tos off
+        lea     di,[si-2]               ;_tos-1
+        mov     dx,_exp[si]             ;exp of _tos
+        cmp     dx,zero
+        jz      div_by_zero
+        mov     ax,_exp[di]             ;exp of _tos-1
+        cmp     ax,zero
+        jnz     real_div
+div_ret:pop     ax
+        pop     bx
+        pop     cx
+        pop     dx
+        pop     si
+        pop     di
+        _ret
+
+real_div:
+        sub     ax,dx                   ;calc new exponent
+        mov     _exp[di],ax             ;and store away
+        mov     al,_sign[si]            ;sign of _tos
+        xor     _sign[di],al            ;flip sign if needed
+        push    bp
+
+;       numerator is ah,bx,dx,bp
+
+        mov     ah,byte mana[di]        ;load numerator mantissa
+        mov     bx,manb[di]
+        mov     dx,manc[di]
+        mov     bp,mand[di]
+        xor     cx,cx                   ;result bits
+        mov     al,5                    ;need 5 bits
+        _call   do_div                  ;cald next 5 bits
+        mov     byte mana[di],cl        ;put hi 5 bits away
+        or      ah,ah                   ;see if any remainder
+        jnz     do_manb
+        mov     cx,bx
+        or      cx,dx
+        or      cx,bp
+        jnz     do_manb
+        xor     cx,cx                   ;set rest to zero as num=0
+        mov     manb[di],cx
+        mov     manc[di],cx
+        mov     mand[di],cx
+        jmp     done_div
+do_manb:xor     cx,cx                   ;result
+        mov     al,16                   ;need 16 bits
+        _call   do_div
+        mov     manb[di],cx             ;put next 16 bits away
+        or      ah,ah                   ;see if any remainder
+        jnz     do_manc
+        mov     cx,bx
+        or      cx,dx
+        or      cx,bp
+        jnz     do_manc
+        xor     cx,cx                   ;set rest to zero as num=0
+        mov     manc[di],cx
+        mov     mand[di],cx
+        jmp     done_div
+do_manc:xor     cx,cx                   ;result
+        mov     al,16                   ;need 16 bits
+        _call   do_div
+        mov     manc[di],cx             ;put next 16 bits away
+        or      ah,ah                   ;see if any remainder
+        jnz     do_mand
+        mov     cx,bx
+        or      cx,dx
+        or      cx,bp
+        jnz     do_mand
+        xor     cx,cx                   ;set rest to zero as num=0
+        mov     mand[di],cx
+        jmp     done_div
+do_mand:xor     cx,cx                   ;result
+        mov     al,16                   ;need 16 bits
+        _call   do_div
+        mov     mand[di],cx             ;put next 16 bits away
+done_div:
+        pop     bp                      ;restore users bp
+        mov     dx,_exp[di]             ;normalize needs exponent
+        jmp     normalize               ;normalize result
+
+
+;       calculate next al bits and put into cx
+
+do_div: shl     cx,1                    ;make room for next bit
+        cmp     ah,byte mana[si]        ;is numerator bigger?
+        ja      fit
+        jb      no_fit
+        cmp     bx,manb[si]             ;test entire mantissa
+        ja      fit
+        jb      no_fit
+        cmp     dx,manc[si]             ;test entire mantissa
+        ja      fit
+        jb      no_fit
+        cmp     bp,mand[si]             ;test entire mantissa
+        jb      no_fit
+
+fit:                                    ;subtract numerator from numerator
+        inc     cx                      ;add bit to result
+        sub     bp,mand[si]             ;subtract denominator
+        sbb     dx,manc[si]
+        sbb     bx,manb[si]
+        sbb     ah,byte mana[si]
+no_fit:                                 ;shift numerator left
+        shl     bp,1
+        rcl     dx,1
+        rcl     bx,1
+        rcl     ah,1
+        dec     al                      ;see if done
+        jnz     do_div
+        _ret
+
+div_by_zero:
+        mov     errno_,32               ;divide by zero
+        _call   rerrno_
+        jmp     div_ret
+
+
+
+
+
+
+;       _fmul  --       multiply. _tos-1 = _tos-1 * _tos
+
+        public  _fmul
+_fmul:  push    di
+        push    si
+        push    dx
+        push    cx
+        push    bx
+        push    ax
+        mov     si,_tos
+        sub     _tos,2                  ;pop _tos off
+        lea     di,[si-2]               ;di addresses _tos-1
+        mov     ax,_exp[si]             ;exp of _tos
+        cmp     ax,zero                 ;if zero arg, zero result
+        jz      store_zero
+        mov     dx,_exp[di]             ;exp of _tos-1
+        cmp     dx,zero
+        jnz     real_mul
+        pop     ax
+        pop     bx
+        pop     cx
+        pop     dx
+        pop     si
+        pop     di
+        _ret                            ; already zero
+
+store_zero:
+        mov     _exp[di],zero           ;zero exponent
+        mov     _sign[di],0             ;sign is plus
+        pop     ax
+        pop     bx
+        pop     cx
+        pop     dx
+        pop     si
+        pop     di
+        _ret
+
+real_mul:
+        add     ax,dx                   ;new exp is sum
+        mov     _exp[di],ax             ;put away
+        mov     al,_sign[si]            ;sign of _tos
+        xor     _sign[di],al            ;fix result sign
+
+;       put _tos-1 into mula,mulb,mulc and muld. zero _tos-1.
+
+        xor     ax,ax
+        xchg    ax,mana[di]
+        mov     mula,ax
+        xor     ax,ax
+        xchg    ax,manb[di]
+        mov     mulb,ax
+        xor     ax,ax
+        xchg    ax,manc[di]
+        mov     mulc,ax
+        xor     ax,ax
+        xchg    ax,mand[di]
+        mov     muld,ax
+
+;       shift _tos left 6 bits.
+
+        mov     cx,6
+tos_left:
+        shl     mand[si],1              ;next word
+        rcl     manc[si],1              ;next word
+        rcl     manb[si],1
+        rcl     mana[si],1
+        loop tos_left
+
+;       shift _tos-1 left 6 bits.
+
+        mov     cx,6
+tosm_left:
+        shl     muld,1
+        rcl     mulc,1
+        rcl     mulb,1
+        rcl     mula,1
+        loop    tosm_left
+
+
+;       a b c d * a b c d  is
+;               ad
+;           ac  bc
+;       ab  bb  cb
+;   aa  ba  ca  da
+
+        mov     ax,mand[si]             ;get ad first
+        or      ax,ax                   ;do not mul if zero
+        jz      nod
+        mul     mula
+        mov     mand[di],dx
+nod:    mov     cx,manc[si]             ;bc and ac
+        or      cx,cx
+        jz      noc
+        mov     ax,mulb
+        or      ax,ax
+        jz      nocb
+        mul     cx                      ;bc
+        add     mand[di],dx
+        jnc     nocb
+        adc     manc[di],0
+        adc     manb[di],0
+        adc     mana[di],0
+nocb:   mov     ax,mula
+        mul     cx                      ;ac
+        add     mand[di],ax
+        adc     manc[di],dx
+        adc     manb[di],0
+        adc     mana[di],0
+noc:    mov     cx,manb[si]             ;cb bb ab
+        or      cx,cx
+        jz      nob
+        mov     ax,mulc
+        or      ax,ax
+        jz      nobc
+        mul     cx                      ;cb
+        add     mand[di],dx
+        jnc     nobc
+        adc     manc[di],0
+        adc     manb[di],0
+        adc     mana[di],0
+nobc:   mov     ax,mulb
+        or      ax,ax
+        jz      nobb
+        mul     cx                      ;bb
+        add     mand[di],ax
+        adc     manc[di],dx
+        adc     manb[di],0
+        adc     mana[di],0
+nobb:   mov     ax,mula
+        mul     cx                      ;ab
+        add     manc[di],ax
+        adc     manb[di],dx
+        adc     mana[di],0
+nob:    mov     cx,mana[si]             ;da ca ba aa
+        mov     ax,muld
+        or      ax,ax
+        jz      noad
+        mul     cx                      ;da
+        add     mand[di],dx
+        adc     manc[di],0
+        adc     manb[di],0
+        adc     mana[di],0
+noad:   mov     ax,mulc
+        or      ax,ax
+        jz      noac
+        mul     cx                      ;ca
+        add     mand[di],ax
+        adc     manc[di],dx
+        adc     manb[di],0
+        adc     mana[di],0
+noac:   mov     ax,mulb
+        or      ax,ax
+        jz      noab
+        mul     cx                      ;ba
+        add     manc[di],ax
+        adc     manb[di],dx
+        adc     mana[di],0
+noab:   mov     ax,mula
+        mul     cx                      ;aa
+        add     manb[di],ax
+        adc     mana[di],dx
+        mov     dx,_exp[di]             ;normalize needs exponent
+        jmp     normalize

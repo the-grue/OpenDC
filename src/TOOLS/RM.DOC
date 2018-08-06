@@ -1,0 +1,24 @@
+
+
+                      RM: a file removal utility
+
+
+       rm is a simple program to delete files.  The main difference
+       between rm and DEL is that rm will accept multiple filenames and
+       can work interactively.  The syntax for rm is:
+
+          rm [-i ] [-l] filename ...
+
+       where  filename may contain the wildcard characters * and ?
+
+              -i sets the interactive mode.  rm will ask for 
+                 confirmation on each of the files before deleting it.
+
+              -l sets the list mode to list the names of the files as 
+                 they are being deleted.
+
+       if no filenames are given, the program will display its syntax 
+       description.  (e.g.  if you only type rm  or if there are no
+       files which match)
+
+       rm does not support deletion of directories.

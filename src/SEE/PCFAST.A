@@ -1,0 +1,946 @@
+;
+;  Released under the GNU GPL.  See http://www.gnu.org/licenses/gpl.txt
+;
+;  This program is part of the SEE editor
+;
+;  SEE is free software; you can redistribute it and/or modify it
+;  under the terms of the GNU General Public License as published by the
+;  Free Software Foundatation; either version 2 of the License, or any
+;  later version.
+;
+;  SEE is distributed in the hope that it will be useful, but WITHOUT
+;  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+;  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+;  for more details.
+;
+;
+; (c) Copyright 1983-1989 Michael Ouye, All Rights Reserved
+;
+; IBM PC high speed video interface
+;
+; This module impelements the editor's video output
+; functions directly in the color graphics controller
+; buffer memory, page 0. 
+;
+; This version assumes that all windows are scr_cols wide.
+;
+
+MAX_WINDOWS	equ	10	; maximum number of window data structures
+
+		dseg
+;
+addr_6845:	dw	3D4H
+cr:		equ	0DH
+lf:		equ	0AH
+bel:		equ	7
+bs:		equ	8
+tab:		equ	9
+home:		equ	11
+ff:		equ	12
+nul:		equ	0
+;/* control key translations */
+up_char		equ	30
+down_char	equ	31
+left_char	equ	29
+right_char	equ	28
+bol_char	equ	200
+eol_char	equ	201
+pageup_char	equ	202
+pagedown_char	equ	203
+bof_char	equ	204
+eof_char	equ	205
+Ins_char	equ	206
+Del_char	equ	207
+NextWord_char	equ	208
+PrevWord_char	equ	209
+
+;/* alt key translations */
+alt_A		equ	174
+alt_B		equ	175
+alt_C		equ	176
+alt_D		equ	177
+alt_E		equ	178
+alt_F		equ	179
+alt_G		equ	180
+alt_H		equ	181
+alt_I		equ	182
+alt_J		equ	183
+alt_K		equ	184
+alt_L		equ	185
+alt_M		equ	186
+alt_N		equ	187
+alt_O		equ	188
+alt_P		equ	189
+alt_Q		equ	190
+alt_R		equ	191
+alt_S		equ	192
+alt_T		equ	193
+alt_U		equ	194
+alt_V		equ	195
+alt_W		equ	196
+alt_X		equ	197
+alt_Y		equ	198
+alt_Z		equ	199
+
+M1		equ	210
+M2		equ	211
+M3		equ	212
+M4		equ	213
+M5		equ	214
+M6		equ	215
+M7		equ	216
+M8		equ	217
+M9		equ	218
+M10		equ	219
+M11		equ	220
+M12		equ	221
+
+sc_down_char	equ	222
+sc_up_char	equ	223
+
+		dseg
+screen_base:	dw	0
+convert:
+		dw	72, up_char
+		dw	80, down_char
+		dw	75, left_char
+		dw	77, right_char
+		dw	71, bol_char
+		dw	79, eol_char
+		dw	73, pageup_char
+		dw	81, pagedown_char
+		dw	77H, bof_char
+		dw	75H, eof_char
+		dw	82, Ins_char
+		dw	83, Del_char
+		dw	115, PrevWord_char
+		dw	116, NextWord_char
+		dw	118, sc_down_char
+		dw	132, sc_up_char
+		dw	59, M1
+		dw	60, M2
+		dw	61, M3
+		dw	62, M4
+		dw	63, M5
+		dw	64, M6
+		dw	65, M7
+		dw	66, M8
+		dw	67, M9
+		dw	68, M10
+		dw	133, M11
+		dw	134, M12
+		dw	16, alt_Q
+		dw	17, alt_W
+		dw	18, alt_E
+		dw	19, alt_R
+		dw	20, alt_T
+		dw	21, alt_Y
+		dw	22, alt_U
+		dw	23, alt_I
+		dw	24, alt_O
+		dw	25, alt_P
+		dw	30, alt_A
+		dw	31, alt_S
+		dw	32, alt_D
+		dw	33, alt_F
+		dw	34, alt_G
+		dw	35, alt_H
+		dw	36, alt_J
+		dw	37, alt_K
+		dw	38, alt_L
+		dw	44, alt_Z
+		dw	45, alt_X
+		dw	46, alt_C
+		dw	47, alt_V
+		dw	48, alt_B
+		dw	49, alt_N
+		dw	50, alt_M
+		dw	0, 255 ; illegal character
+
+		public	scr_window_
+scr_window_	dw	0	; pointer to the "current" window
+
+WIN_STRUCT_SIZE	equ	16
+;
+; window data structure:
+;	wattr				; text attribute & active flag
+;	wtop, wleft 			; top/left cordinate in chars.
+;	wrows, wcols			; window size
+;	wcrow, wccol			; cursor row, col
+;	wscroll_top			; last row not scrolled
+;	wbase				; window memory base pointer
+;	wposition			; pointer to cursor location
+;	wchars				; # chars in the window
+;	wmarked				; address of the marked character
+;
+wattr		equ	0
+wtop		equ	1
+wleft		equ	2
+wrows		equ	3
+wcols		equ	4
+wcrow		equ	5
+wccol		equ	6
+wscroll_top	equ	7
+wbase		equ	8		; screen offset to top of window
+wposition	equ	10		; screen offset to cursor location
+wchars		equ	12
+wmarked		equ	14
+
+; Note to minimize changes to SEE, line 0 is always the top line on the
+; screen.  Therefore, lines in a window, excluding the menu line
+; are labeled from 1 to n.  Also, left will always be 0.
+;
+scr_win_:	dw	0,0,0,0,0,0,0,0
+		dw	0,0,0,0,0,0,0,0
+		dw	0,0,0,0,0,0,0,0
+		dw	0,0,0,0,0,0,0,0
+		dw	0,0,0,0,0,0,0,0
+		dw	0,0,0,0,0,0,0,0
+		dw	0,0,0,0,0,0,0,0
+		dw	0,0,0,0,0,0,0,0
+		dw	0,0,0,0,0,0,0,0
+		dw	0,0,0,0,0,0,0,0
+
+		public	scr_cols_, scr_rows_, scr_scrollup_, scr_scrolldown_	
+		public	scr_attr_,scr_window_top_,scr_curs_,scr_cga_
+
+;
+; initial values:
+scr_cols_:	dw	80
+;NOTE: make 24 for CP/M as cpm steals last line. 25 for MS-DOS.
+scr_rows_:	dw	25
+
+scr_window_top_	db	2		; first line of the text screen
+
+; repaint indications to SEE
+scr_scrollup_:	db	0		; scroll up without wasting top 2 lines
+scr_scrolldown_:db	0		; scroll down without wasting top 2 lines
+
+scr_attr_:	db	07H
+scr_curs_	rb	1		; special cursor flag
+scr_cga_	db	0		; CGA flag, wait for synch
+
+cursor:		db	7,6		; underline cursor
+		db	7,0		; block cursor
+		db	1,6		; double bar cursor
+
+;
+		cseg
+		public	scr_rowcol_, scr_clr_, scr_clrl_, scr_cls_
+		public	scr_scup_, scr_scdn_, scr_csts_
+		public	scr_co_, scr_setup_, scr_ci_
+		public	scr_set_cursor_, scr_mark_,scr_unmark_
+		public	scr_curs_setup_
+;
+;
+; scr_rowcol_(row, col): move the cursor to the indicated screen position
+;   in the current window.
+;
+scr_rowcol_:
+		push	bp
+		mov	bp,sp
+		mov	ax,[bp+4]	;row
+		mov	dx,[bp+6]	;col
+
+		mov	bx,scr_window_	; current window pointer
+		xor	ah,ah
+		mov	dh,ah
+		cmp	al,byte [bx+wrows]
+		jb	r_ok
+		mov	al,byte [bx+wrows]
+		dec	al
+
+r_ok:		cmp	dl,byte [bx+wcols]
+		jb	c_ok
+		mov	dl,byte [bx+wcols]
+		dec	dl
+c_ok:
+		mov	byte[bx+wccol],dl	; store new position
+		mov	byte[bx+wcrow],al
+
+		add	dl,[bx+wleft]
+		or	al,al
+		jz	r_top
+		add	al,[bx+wtop]		; add in the top offset
+r_top:
+		mov	cl,byte [bx+wcols]	; compute address
+		mul	cl
+		add	ax,dx
+		shl	ax,1
+		mov	word [bx+wposition],ax	; offset from top of screen
+		pop	bp
+		ret
+
+disable_video:				; turn the screen refresh off
+		cmp	byte scr_cga_,0
+		je	dv_ret
+		mov	dx,addr_6845
+		add	dx,4
+		mov	al,25H
+		out	dx,al		; disable video
+dv_ret:
+		ret
+
+enable_video:				; set crt mode
+		cmp	byte scr_cga_,0
+		je	ev_ret
+		mov	dx,addr_6845
+		add	dx,4
+		mov	bx,40H
+		mov	es,bx
+		mov	al,es:[65H]	; crt_mode_set
+		out	dx,al		; restore video
+ev_ret:
+		ret
+;
+; scr_clr_(): clear the current window
+;
+scr_clr_:					; clear screen
+		mov	si,scr_window_
+		mov	word [si+wmarked],-1
+		mov	dx,screen_base
+		mov	es,dx
+		mov	di,word [si+wbase]
+		mov	ax,word [si+wchars]
+		cmp	si,offset scr_win_
+		je	clr_over
+;	include line 0 only in the default (0) window
+		mov	cl,byte [si+wcols]
+		xor	ch,ch
+		add	di,cx
+		add	di,cx
+		sub	ax,cx
+
+clr_over:	mov	cx,ax
+		mov	bh,scr_attr_
+		mov	bl,20H	; blanks
+		cld
+		mov	dx,addr_6845	; 6845 status port
+		add	dx,6		; crt status
+		cmp	byte scr_cga_,0
+		je	clr_go
+clr_loop:	in	al,dx
+		test	al,8		; vertical retrace
+		jz	clr_loop
+		call	disable_video
+clr_go:
+		mov	ax,bx
+		rep	stosw
+		call	enable_video
+
+		mov	byte [si+wcrow],0
+		mov	byte [si+wccol],0
+		mov	ax, word [si+wbase]
+		mov	word [si+wposition],ax
+		ret
+
+scr_clrl_:				; clear rest of line
+		mov	si,scr_window_
+		mov	cl,byte [si+wcols]
+		sub	cl,byte [si+wccol]	; subtract the current column
+		xor	ch,ch
+		mov	bx,screen_base
+		mov	es,bx
+		mov	di,word [si+wposition]
+		cld
+		mov	dx,addr_6845		; 6845 status port
+		add	dx,6		; CRT status
+		mov	bh, scr_attr_
+		mov	bl,20H
+
+clrl_loop:
+		cmp	di,word [si+wmarked]
+		je	clrl_word
+		cmp	byte scr_cga_,0
+		je	clrl_go1
+clrl_loop1:
+		in	al,dx
+		test	al,1
+		jnz	clrl_loop1
+clrl_go1:
+		cli
+		cmp	byte scr_cga_,0
+		je	clrl_go2
+wait_loop:	in	al,dx		; wait for refresh
+		test	al,1		; vertical retrace
+		jz	wait_loop
+clrl_go2:
+		mov	ax,bx
+		stosb			; only the character, not attribute
+		inc	di
+		sti
+		jmp	clrl_test
+clrl_word:
+		mov	word [si+wmarked],-1
+		cmp	byte scr_cga_,0
+		je	clrl_go3
+		in	al,dx
+		test	al,1
+		jnz	clrl_word
+clrl_go3:
+		cli
+		cmp	byte scr_cga_,0
+		je	clrl_go4
+wait_loop2:	in	al,dx		; wait for refresh
+		test	al,1		; vertical retrace
+		jz	wait_loop2
+clrl_go4:
+		mov	ax,bx
+		stosw
+		sti
+clrl_test:
+		loop	clrl_loop
+		ret			; don't move the cursor
+;
+; scr_cls_(): clear the rest of the window from the cursor location
+;
+scr_cls_:				; clear rest of screen
+		mov	dx,addr_6845	; 6845 status port
+		add	dx,6		; CRT status
+		cmp	byte scr_cga_,0
+		je	cls_go
+cls_loop:	in	al,dx
+		test	al,8		; vertical retrace
+		jz	cls_loop
+		call	disable_video
+cls_go:
+		mov	si,scr_window_
+		mov	ax,word [si+wposition]
+		mov	di,ax
+		sub	ax,[si+wbase]		; minus the window base
+		shr	ax,1			; in characters
+		mov	cx,word [si+wchars]	; # characters in a buffer
+		sub	cx,ax
+		mov	ax,screen_base
+		mov	es,ax
+		mov	ah,scr_attr_
+		mov	al,20H		; blanks
+		cld
+		rep	stosw		; store the rest of the screen
+		call	enable_video
+		mov	si,scr_window_
+		mov	di,word [si+wposition]
+		cmp	di,[si+wmarked]
+		jb	cls_over
+		mov	word [si+wmarked],-1
+cls_over:
+		ret			; don't change the cursor
+
+
+;
+; scr_scup_(): scroll the last line up in the current window
+;
+scr_scup_:
+		mov	bx,scr_window_
+		xor	ch,ch
+		mov	cl,[bx+wcols]
+		shl	cx,1			; bytes/line
+		mov	di,[bx+wbase]		; window base
+		xor	ah,ah
+		mov	al,[bx+wscroll_top]
+		mul	cx
+		add	di,ax
+		mov	si,di
+		add	si,cx			; plus one line
+		mov	al,[bx+wrows]
+		sub	al,[bx+wscroll_top]
+		dec	al
+		xor	ah,ah
+		mov	cl,[bx+wcols]
+		xor	ch,ch
+		mul	cx
+		mov	cx,ax			; # words to scroll
+do_move:
+		call	disable_video
+		push	ds	; save the data segment
+		cld
+		mov	ax, screen_base
+		mov	ds,ax
+		mov	es,ax
+		rep	movsw
+		pop	ds		; restore data segment
+		mov	ah, scr_attr_
+		mov	al,20H
+		xor	ch,ch
+		mov	cl,[bx+wcols]
+		rep	stosw	; blank out the last line
+		call	enable_video
+; handle the marker
+		mov	bx,scr_window_
+		mov	ax,[bx+wmarked]
+		mov	cl,[bx+wcols]
+		sub	ax,cx
+		sub	ax,cx
+		ja	sup_over
+		mov	ax,-1
+sup_over:	mov	[bx+wmarked],ax
+		ret
+;
+; scr_scdn_(): scroll the window down one line
+;
+scr_scdn_:				; scroll first line
+		mov	bx,scr_window_
+		mov	di,[bx+wbase]
+		add	di,[bx+wchars]
+		add	di,[bx+wchars]
+		sub	di,2			; (last word) of the last line
+		mov	si,di
+		mov	cl,[bx+wcols]
+		xor	ch,ch
+		sub	si, cx			; second to the last line
+		sub	si, cx
+		push	ds
+		std			; reverse direction
+		mov	ax,cx
+		mov	cx,[bx+wchars]
+		sub	cx, ax
+		sub	cx, ax
+		mov	dl, byte [bx+wscroll_top]
+		xor	dh,dh
+		dec	dl
+		mul	dl
+		sub	cx,ax
+		call	disable_video
+		mov	ax,screen_base
+		mov	ds,ax
+		mov	es,ax
+
+		rep	movsw
+		pop	ds
+		mov	ah,scr_attr_
+		mov	al,20H	; blanks
+		mov	cl,[bx+wcols]
+		xor	ch,ch
+		rep	stosw		; blank out first line
+		call	enable_video
+		mov	bx,scr_window_
+		mov	ax,[bx+wmarked]
+		mov	cl,[bx+wcols]
+		add	ax,cx
+		add	ax,cx
+		cmp	ax,[bx+wchars]
+		jb	sdn_over
+		mov	ax,-1
+sdn_over:	mov	[bx+wmarked],ax
+		ret
+
+scr_curs_setup_:		; set cursor heights
+		push	bp
+		mov	bp,sp
+		mov	al,[bp+4]	; new cursor height
+		mov	scr_curs_,al
+		cmp	scr_curs_,0
+		je	scs_skip
+		mov	al,scr_curs_
+		dec	al
+		mov	ah,al
+		dec	ah
+		mov	cursor,al
+		mov	cursor+1,ah
+		mov	cursor+2,al
+		mov	cursor+5,ah
+scs_skip:	pop	bp
+		ret
+
+
+scr_setup_:		; initialize the base pointer for the screen 
+		push	bp
+		mov	ax,40H
+		mov	es,ax
+		mov	ax,0B800H
+		mov	dx,3D4H
+		mov	bl,es:[10h]	; test which card in use
+		and	bl,30H
+		cmp	bl,30H
+		jne	skip_over
+		mov	ax,0B000H
+		mov	dx,3B4H
+skip_over:	mov	screen_base,ax
+		mov	addr_6845,dx
+		mov	ax, 40H		; BIOS data segment
+		mov	es,ax
+		cmp	es: byte [4AH], 40
+		jne	skip_again
+		mov	scr_cols_,40
+skip_again:
+		call	scr_curs_setup_
+;
+; initialize the first window data structure
+;
+		mov	scr_window_,offset scr_win_
+		mov	al,scr_attr_
+		mov	byte scr_win_+wattr,al	; initialized
+		mov	byte scr_win_+wtop,0	; top
+		mov	byte scr_win_+wleft,0	; left
+		mov	ax,scr_rows_
+		mov	byte scr_win_+wrows,al	; rows
+		mov	ax,scr_cols_
+		mov	byte scr_win_+wcols,al	; cols
+		mov	byte scr_win_+wcrow,0	; cursor row
+		mov	byte scr_win_+wccol,0	; cursor col
+		mov	word scr_win_+wbase,0	; screen base pointer
+		mov	al,scr_window_top_
+		mov	byte scr_win_+wscroll_top,al ; first scrolling line
+		mov	ax,scr_rows_
+		mul	scr_cols_
+		mov	word scr_win_+wchars,ax	; # character in the window
+;	initialize the rest of the flags as uninitialized
+		mov	bx,WIN_STRUCT_SIZE
+		mov	cx,MAX_WINDOWS-1
+winit_loop:	mov	byte scr_win_[bx],0
+		add	bx,WIN_STRUCT_SIZE
+		loop	winit_loop
+		pop	bp
+		ret
+
+;
+;	SCR_OPEN_		open / modify a window structure
+;		(id, top,  left, rows, cols)
+;		if id == -1, then open a window, else modify a current
+;		window
+;
+		public	scr_open_
+scr_open_:	;(id, top, left, rows, cols)	
+		push	bp
+		mov	bp,sp
+		mov	bx,[bp+4]	; id
+		cmp	bx,-1
+		je	new_window
+		shl	bx,1
+		shl	bx,1
+		shl	bx,1
+		shl	bx,1		; offset into scr_win_ array
+		test	byte scr_win_[bx+wattr],0FFH	; check if it's open
+		jz	bad_ret
+
+		mov	al,scr_attr_
+		mov	byte scr_win_[bx+wattr],al
+
+; modify the window structure values
+open_setup:
+		mov	al, byte scr_win_[bx+wattr]
+		mov	scr_attr_,al
+
+		mov	ax,[bp+6]	; top
+		mov	byte scr_win_[bx+wtop],al
+		mov	ax,[bp+8]	; left
+		mov	byte scr_win_[bx+wleft],al
+		mov	ax,[bp+10]	; rows
+		mov	byte scr_win_[bx+wrows],al
+		mov	byte scr_rows_,al
+		mov	cx,[bp+12]	; cols
+		mov	byte scr_win_[bx+wcols],cl
+		mov	byte scr_cols_,cl
+		mul	cx		; compute # chars
+		mov	word scr_win_[bx+wchars],ax
+		mov	ax,cx
+		mul	word [bp+6]		; cols *top to compute base
+		shl	ax,1
+		mov	word scr_win_[bx+wbase],ax
+		mov	ax,[bp+4]	; id
+open_ret:	pop	bp
+		ret
+open_window:
+		mov	al,scr_attr_
+		mov	byte scr_win_[bx+wattr],al
+		mov	byte scr_win_[bx+wcrow],0
+		mov	byte scr_win_[bx+wccol],0
+		mov	al,scr_window_top_
+		mov	byte scr_win_[bx+wscroll_top],al
+		mov	ax,bx
+		shr	ax,1
+		shr	ax,1
+		shr	ax,1
+		shr	ax,1
+		mov	[bp+4],ax	; store id
+		jmp	open_setup
+new_window:				; search for an open descriptor
+		mov	cx,MAX_WINDOWS-1
+		xor	bx,bx
+nw_loop:	cmp	byte scr_win_[bx+wattr],0
+		je	open_window
+		add	bx,WIN_STRUCT_SIZE
+		loop	nw_loop
+bad_ret:	mov	ax,-1
+		jmp	open_ret
+;
+;	SCR_INFO		returns the window size
+;
+		public	scr_info_
+scr_info_:	;(id, top_ptr, left_ptr, rows_ptr, cols_ptr)	
+		push	bp
+		mov	bp,sp
+		mov	bx,[bp+4]	;id
+		cmp	bx,-1
+		je	current
+		shl	bx,1
+		shl	bx,1
+		shl	bx,1
+		shl	bx,1
+		add	bx,offset scr_win_
+		jmp	store
+current:
+		mov	bx,scr_window_
+store:
+		xor	ah,ah
+		mov	di,[bp+6]	; top_ptr
+		mov	al,[bx+wtop]
+		mov	[di],ax
+		mov	di,[bp+8]	; left_ptr;
+		mov	al,[bx+wleft]
+		mov	[di],ax
+		mov	di,[bp+10]	; rows_ptr;
+		mov	al,[bx+wrows]
+		mov	[di],ax
+		mov	di,[bp+12]	; cols_ptr;
+		mov	al,[bx+wcols]
+		mov	[di],ax
+		pop	bp
+		ret
+
+;
+;	SCR_PICK_		select an open window
+;		(id)
+;		if (id == -1) returns the current window id
+;
+		public	scr_pick_
+scr_pick_:	;(id)
+		push	bp
+		mov	bp,sp
+		mov	bx,[bp+4]	;id
+		cmp	bx,-1
+		je	pick_this_one
+		shl	bx,1
+		shl	bx,1
+		shl	bx,1
+		shl	bx,1
+		test	byte scr_win_[bx+wattr],0FFH
+		jz	bad_ret		; jump if window not open
+		lea	ax,scr_win_[bx]
+		mov	scr_window_,ax
+		mov	al, byte scr_win_[bx+wattr]
+		mov	scr_attr_,al
+		xor	ah,ah
+		mov	al, byte scr_win_[bx+wrows]
+		mov	scr_rows_,ax
+		mov	al, byte scr_win_[bx+wcols]
+		mov	scr_cols_,ax
+
+		mov	al,byte scr_win_[bx+wccol]
+		push	ax
+		mov	al,byte scr_win_[bx+wcrow]
+		push	ax
+		call	scr_rowcol_	; move the cursor
+		add	sp,4
+		mov	ax,[bp+4]	;id
+		pop	bp
+		ret
+pick_this_one:	mov	ax,scr_window_	; generate an index for the current window
+		sub	ax,offset scr_win_
+		shr	ax,1
+		shr	ax,1
+		shr	ax,1
+		shr	ax,1
+		pop	bp
+		ret
+;
+;	SCR_TERM_		do any required termination.
+
+;				Usage:  scr_term();
+
+	public	scr_term_
+scr_term_:
+	ret
+
+
+scr_ci_:					;return the next character
+					; translate if necessary
+		push	bp
+ci_cont:	mov	ah,0
+		int	16H
+		cmp	al,0
+		jne	not_special
+		mov	bx, offset convert	; convert special key
+ci_loop:
+		cmp	byte[bx],0
+		jz	got_it
+		cmp	ah, byte[bx]
+		je	got_it
+		inc	bx
+		inc	bx
+		inc	bx
+		inc	bx
+		jmp	ci_loop
+got_it:		inc	bx
+		inc	bx
+		mov	ax,word[bx]
+		pop	bp
+		ret
+not_special:	mov	ah,0
+		pop	bp
+		ret
+
+scr_csts_:				;return non-zero if character avail
+		push	bp
+		mov	ah,1
+		int	16H
+		jnz	ci_cont
+		mov	ax,0
+		pop	bp
+		ret
+
+scr_set_cursor_:;(type)			; set the visible cursor to the
+					; current position
+		push	bp
+		mov	bp,sp
+		mov	ah,2
+		mov	bx,scr_window_
+		mov	dh, [bx+wcrow]
+		mov	dl, [bx+wccol]
+		add	dl, [bx+wleft]
+		or	dh,dh
+		jz	first_row
+		add	dh, [bx+wtop]
+first_row:
+		mov	bh,0
+		int	10H
+		cmp	scr_curs_,0
+		je	ssc_over
+		mov	bx,[bp+4]
+		shl	bx,1
+		mov	cx,word cursor[bx]
+		mov	ah,1
+		int	10H
+ssc_over:
+		pop	bp
+		ret
+
+scr_attr_co_:				; output character and attribute
+					;  at the cursor position.  If the
+					;  character is 0, then the attribute
+					;  is applied to the existing character
+					; parameter is the combined attr (high byte)
+					; and character (low).  Attributes
+					; conform to the IBM-PC screen attributes
+
+		pop	bx
+		pop	ax
+		push	ax
+		push	bx		; caller cleans stack
+					; put the char in the buffer
+		mov	bx,scr_window_
+		mov	cx,ax
+		mov	dx,screen_base
+		mov	es,dx
+		mov	di,word [bx+wposition]
+		or	cl,cl
+		jnz	oc_over
+		mov	cl,es:[di]
+oc_over:
+		mov	dx,addr_6845	; 6845 status port
+		add	dx,6
+		cmp	di,word [bx+wmarked]
+		je	oc_word
+		cmp	byte scr_cga_,0
+		je	oc_go1
+oc_loop2:	in	al,dx
+		test	al,1
+		jnz	oc_loop2
+oc_go1:
+		cli
+		cmp	byte scr_cga_,0
+		je	oc_go2
+oc_loop1:	in	al,dx		; wait for it to drop
+		test	al,1
+		jz	oc_loop1
+oc_go2:
+		mov	ax,cx
+		stosb
+		sti			; reenable interrupts
+		ret
+oc_word:
+		mov	word [bx+wmarked],-1
+		cmp	byte scr_cga_,0
+		je	oc_go3
+oc_loop4:	in	al,dx
+		test	al,1
+		jnz	oc_loop4
+oc_go3:
+		cli
+		cmp	byte scr_cga_,0
+		je	oc_go4
+oc_loop3:	in	al,dx		; wait for it to drop
+		test	al,1
+		jz	oc_loop3
+oc_go4:
+		mov	ax,cx
+		stosw
+		sti			; reenable interrupts
+		ret
+
+;
+; scr_co_(ch): write the character at the current cursor location
+;
+scr_co_:					; standard screen output routine
+		pop	bx
+		pop	ax
+		push	ax
+		push	bx
+		mov	ah,scr_attr_ 		; standard video attribute
+		push	ax
+		call	scr_attr_co_
+		pop	bx
+		mov	bx, scr_window_
+		mov	al,[bx+wccol]
+		inc	al		; since we start at column 0 to scr_cols_ - 1
+		cmp	al, byte [bx+wcols]
+		jae	no_right
+		mov	[bx+wccol],al
+		add	word [bx+wposition],2
+no_right:
+		ret
+
+;
+; scr_mark_(ch): mark the character
+;
+scr_mark_:					; mark the passed char,
+						; cursor does not advance
+		pop	bx
+		pop	ax
+		push	ax
+		push	bx
+		cmp	al, 20H			; check for printable > 20H
+		jae	m_over
+		mov	al, 20H
+m_over:
+		mov	ah, 70H			; reverse video attribute
+		mov	bx,scr_window_
+		mov	di,[bx+wposition]
+		mov	[bx+wmarked],di
+		push	ax
+		call	scr_attr_co_
+		pop	bx
+		mov	bx,scr_window_		; reset it because scr_attr_co
+		mov	di,[bx+wposition]	; will clear it
+		mov	word [bx+wmarked],di
+		ret
+
+;
+; scr_unmark_(ch): remove the mark from the current character
+;
+scr_unmark_:
+						; cursor does not advance
+		pop	bx
+		pop	ax
+		push	ax
+		push	bx
+		cmp	al, 20H			; check for printable > 20H
+		jae	unm_over
+		mov	al, 20H
+unm_over:
+		mov	ah,scr_attr_
+		push	ax
+		call	scr_attr_co_
+		pop	bx
+		ret
+

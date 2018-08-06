@@ -1,0 +1,135 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+	include "config.h"
+;	FLOOR.A	--	Software floating point floor function.
+
+ZERO	equ	-30000
+
+	dseg
+sign	db	0
+exp	dw	0
+mana	dw	0
+manb	dw	0
+manc	dw	0
+mand	dw	0
+
+is_ceil	db	0
+
+	cseg
+	public	_floadd,_fstoreb,_floadb
+
+	public	floor_,ceil_
+ceil_:	mov	is_ceil,255
+	jmp	floor_cont
+
+floor_:	mov	is_ceil,0
+floor_cont:
+	push	bp
+	mov	bp,sp
+	lea	si,[bp+pbase]		;argument is here
+	if	model
+	push	ss
+	pop	es
+	endif
+	_call	_floadd			;load it
+	mov	di,offset sign		;store it as bits
+	if	model
+	push	ds
+	pop	es
+	endif
+	_call	_fstoreb
+	mov	cx,exp
+	cmp	cx,ZERO			;is the number zero ?
+	jz	floor_done
+	cmp	sign,0			;if negative then do a ceil
+	jz	get_exp
+	not	is_ceil			;for a floor etc
+get_exp:
+	cmp	cx,52			;only 52 bit int possable
+	jge	floor_done
+	cmp	cx,0			;if less than zero then fraction
+	jl	fraction
+
+;	to the actual floor here
+
+	mov	ax,1111b		;load mask for killing fraction
+	mov	bx,0ffffh
+	mov	si,bx
+	mov	dx,bx
+fu16:	cmp	cx,16			;shift words fast
+	jb	fu1
+	sub	cx,16			;shifting mask by 16
+	mov	dx,si
+	mov	si,bx
+	mov	bx,ax
+	xor	ax,ax
+	jmp	fu16
+fu1:	jcxz	got_mask		;shift by 1
+fu11:	shr	ax,1
+	rcr	bx,1
+	rcr	si,1
+	rcr	dx,1
+	loop	fu11
+got_mask:
+	cmp	is_ceil,0		;up or down ?
+	jz	do_floor
+	add	mand,dx			;add in fraction to round up
+	adc	manc,si
+	adc	manb,bx
+	adc	mana,ax
+do_floor:
+	not	ax
+	and	mana,ax			;kill unneeded bits
+	not	bx
+	and	manb,bx
+	not	si
+	and	manc,si
+	not	dx
+	and	mand,dx
+
+;	normalize in case of roundup
+	test	mana,0ffe0h		;any more on?
+	jz	floor_done
+	inc	exp
+	shr	mana,1			;shift mantissa right
+	rcr	manb,1
+	rcr	manc,1
+	rcr	mand,1
+
+
+floor_done:
+	mov	si,offset sign		;reload number
+	if	model
+	push	ds
+	pop	es
+	endif
+	_call	_floadb
+	pop	bp
+	_ret
+
+fraction:
+	cmp	is_ceil,0
+	jnz	set_one
+	mov	sign,0
+	mov	exp,ZERO
+	jmp	floor_done
+
+set_one:mov	exp,0
+	mov	mana,10000b		;set number to 1.
+	mov	manb,0
+	mov	manc,0
+	mov	mand,0
+	jmp	floor_done

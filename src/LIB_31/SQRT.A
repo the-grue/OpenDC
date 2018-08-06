@@ -1,0 +1,142 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+	include "config.h"
+;	SQRT.A	--	Software floating point square root.
+
+
+ZERO		equ	-30000
+MINUS		equ	80H
+
+		public	errno_:word
+
+sign		db	0		;caution: 3 fields must be contiguous
+exp		dw	0
+sqnum		dw	0,0,0,0		;starting number
+
+rsign		db	0		;caution: 3 fields must be adjacent
+rexp		dw	0
+result		dw	0,0,0,0		;result
+divisor		dw	0,0,0,0		;current 'divisor'
+left		dw	0,0,0,0		;partial remainder
+
+	cseg
+
+	public	sqrt_,_floadd,_floadb,_fstoreb
+
+sqrt_:	mov	si,sp			;load the number from stack
+	add	si,pbase-2
+	if	model
+	push	ss
+	pop	es
+	endif
+	_call	_floadd
+	mov	di,offset sign		;store internal form of number
+	if	model
+	push	ds
+	pop	es
+	endif
+	_call	_fstoreb
+	mov	ax,exp			;exponent of number
+	cmp	ax,ZERO			;if zero then zero
+	jz	zero_sqrt
+	mov	rexp,ax
+	mov	al,sign
+	mov	rsign,al
+	cmp	al,MINUS
+	jnz	sqrt_ok
+	mov	errno_,33		;out of range
+zero_sqrt:
+	_ret
+
+sqrt_ok:sar	rexp,1			;divide exponent in half
+	mov	si,offset sqnum		;shift number left one
+	jnc	even_exp
+	call	shl8
+even_exp:
+	call	shl8x2			;byte allign the number
+
+	push	ds
+	pop	es
+	mov	di,offset result	;zero result
+	xor	ax,ax
+	mov	cx,4
+	cld
+rep	stosw
+	mov	di,offset left		;zero bits left in number
+	mov	cx,4
+rep	stosw
+
+	mov	dx,53			;bits of result needed
+
+sqrtx:	mov	si,offset result	;calculate new divisor
+	call	shl8			;mul result by 2
+	mov	di,offset divisor
+	mov	cx,4			;move result to divisor
+rep	movsw
+	mov	si,offset divisor	;shift divisor again
+	call	shl8
+	inc	byte divisor+6		;divisor is result*2+1
+
+	mov	si,offset sqnum		;get 2 bits from number
+	call	shl8x2
+	mov	si,offset left		;add to shifted remainder
+	call	shl8x2
+	mov	al,byte sqnum+1		;next 2 bits
+	and	al,3
+	or	byte left+6,al
+
+	mov	al,byte left		;see if divisor fits
+	cmp	al,byte divisor
+	jc	no_fit
+	ja	one_more
+	mov	ax,left+2		;see if divisor fits
+	cmp	ax,divisor+2
+	jc	no_fit
+	ja	one_more
+	mov	ax,left+4		;see if divisor fits
+	cmp	ax,divisor+4
+	jc	no_fit
+	ja	one_more
+	mov	ax,left+6		;see if divisor fits
+	cmp	ax,divisor+6
+	jc	no_fit
+one_more:
+	mov	ax,divisor+6		;subtract divisor
+	sub	left+6,ax
+	mov	ax,divisor+4		;subtract divisor
+	sbb	left+4,ax
+	mov	ax,divisor+2		;subtract divisor
+	sbb	left+2,ax
+	mov	al,byte divisor		;subtract divisor
+	sbb	byte left,al
+	inc	byte result+6		;add a bit to the result
+
+no_fit:	dec	dx			;digit count
+	jnz	sqrtx
+
+;	move the result back
+
+	mov	si,offset rsign
+	_call	_floadb
+	_ret
+
+shl8x2:	call	shl8			;shift 8 bytes left at [si] 2 times
+
+shl8:	shl	word [si+6],1		;shift 8 bytes left
+	rcl	word [si+4],1
+	rcl	word [si+2],1
+	rcl	word [si],1
+	ret

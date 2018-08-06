@@ -1,0 +1,131 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+        include "config.h"
+;       dates.a  --  return time and date strings
+
+msdos   equ     21h
+gdate   equ     2ah
+gtime   equ     2ch
+
+
+;       dates           dates(buffer)
+;                       returns mm-dd-yy as a string
+
+        cseg
+        public  dates_
+dates_: push    bp
+        mov     bp,sp
+        mov     ah,gdate
+        int     msdos
+        if      model
+        les     di,[bp+pbase]
+        else
+        mov     ax,ds
+        mov     es,ax
+        mov     di,[bp+pbase]           ;es:di is the target string
+        endif
+        mov     si,di
+        cld
+        mov     bl,dh                   ;month
+        _call   add_digs
+        if      model
+        cmp     es: byte[si],'0'                ;zero suppress date
+        else
+        cmp     byte [si],'0'           ;zero suppress date
+        endif
+        jnz     digok
+        if      model
+        mov     es: byte [si],' '
+        else
+        mov     byte [si],' '
+        endif
+digok:  mov     al,'-'                  ;add dash after month
+        stosb
+        mov     bl,dl                   ;handle the day
+        _call   add_digs
+        mov     al,'-'                  ;dash after the day
+        stosb
+        sub     cx,1900                 ;want 2 digs of year
+        cmp     cx,100
+        jb      year_ok                 ;see if already 2000
+        sub     cx,100
+year_ok:mov     bl,cl
+        _call   add_digs
+        mov     al,0                    ;end string with a zero
+        stosb
+        pop     bp
+        _ret
+
+
+
+;       times           times(buffer)
+;                       returns hh-mm-ss as a string
+
+        public  times_
+times_: push    bp
+        mov     bp,sp
+        mov     ah,gtime
+        int     msdos
+        if      model
+        les     di,[bp+pbase]
+        else
+        mov     ax,ds
+        mov     es,ax
+        mov     di,[bp+pbase]           ;es:di is the target string
+        endif
+        mov     si,di
+        cld
+        mov     bl,ch                   ;hours
+        _call   add_digs
+        if      model
+        cmp     es: byte [si],'0'               ;zero suppress time
+        else
+        cmp     byte [si],'0'           ;zero suppress time
+        endif
+        jnz     tdigok
+        if      model
+        mov     es: byte [si],' '
+        else
+        mov     byte [si],' '
+        endif
+tdigok: mov     al,':'                  ;add colon after hours
+        stosb
+        mov     bl,cl                   ;handle the day
+        _call   add_digs
+        mov     al,':'                  ;colon after the minutes
+        stosb
+        mov     bl,dh                   ;handle the seconds
+        _call   add_digs
+        mov     al,0                    ;end string with a zero
+        stosb
+        pop     bp
+        _ret
+
+
+
+
+
+add_digs:
+        mov     al,bl
+        mov     ah,0                    ;ax is the number
+        mov     bh,10                   ;divide by 10
+        div     bh
+        add     al,'0'                  ;significant digit
+        stosb
+        mov     al,ah                   ;remainder
+        add     al,'0'
+        stosb
+        _ret

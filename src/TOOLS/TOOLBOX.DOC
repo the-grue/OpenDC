@@ -1,0 +1,81 @@
+
+
+	toolbox.s : this is a library of useful routines as described below
+
+---------------
+	int findfile(filename, target_buf) : searches for the file given in
+		filename by checking the current directory and the directories
+		listed in the PATH environment variable.  If the file is found,
+		findfile returns 1 and the target_buf area contains the FULL
+		pathname.  If the file isn't found, 0 is returned.
+
+		Requirements:
+			This routine uses 300 bytes of stack.
+
+		Limits:
+			only 256 bytes of the PATH variable will be searched.
+
+		System: 
+			MS-DOS 2.0
+
+---------------
+	int environ(search_string, target, max) : searches the environment for
+		the variable name which corresponds to search_string.  If found,
+		the target area will be filled with at most max characters from
+		the variable string and the length of the string will be returned.
+		If the search_string is not found, -1 is returned.
+
+		Requirements:
+			none
+
+		Limits:
+			none
+
+		System:
+			MS-DOS 2.0
+
+
+---------------
+	Line input routines:
+
+	char *cur_line;
+	int  line_number;
+
+	line_start(fname, position, first_line) : opens the file fname at
+		at the location position (long).  The first line of the file
+		will be pointed to by cur_line after this call and line_number
+		will be first_line. Returns 1 if successful, 0 otherwise.
+
+	line_next() : returns 1 if another line is available, sets cur_line
+		to point at the new line and increments line_number.  returns
+		0 if no more lines are available.
+
+	line_stop() : closes the input file.
+
+		Requirements:
+			1300 bytes of data
+		
+		Limits:
+			255 maximum line length
+
+		System:
+			MS-DOS 1.1 or 2.0
+
+	line2_start, line2_next, line2_stop, cur2_line, line2_number: same
+		as above for a second file.
+---------------
+	main(argc, argv) : this is a C main procedure which expands wildcard
+		filenames out to multiple arguments.  Command line items such
+		as *.c return all the .c files in the current directory.
+		The user main program must be named main1 instead of main for
+		the linkage to work.
+
+		Requirements:
+			This routine uses 4096 bytes of stack.
+
+		Limits:
+			4096 bytes of pointer array and data.
+
+		System: 
+			MS-DOS 2.0,2.1
+---------------
