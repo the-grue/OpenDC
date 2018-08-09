@@ -13,6 +13,10 @@
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  *  for more details.
  */
+/*      the-grue - 20180809
+ *      Changed lines 318, 324-327 to conform to new compiler.
+ */
+
 /*	ASM88	ASSEMBLER FOR 8088					ASM3.C	*/
 
 /*	handle all of the floating point mnumonics	*/
@@ -315,14 +319,16 @@ wait() {
 
 /*		output an instruction and r/m for a float.	*/
 
-union {char bytes[2]; };
+union bcode {char bytes[2]; };
 
 ofrm(ftype,vtype)
 	unsigned ftype;
 	int  vtype[]; {
 
-	codeb((&ftype)->bytes[1]);
-	orm(&ftype->bytes[0],vtype);
+	union bcode *bctype = &ftype;
+
+	codeb(bctype->bytes[1]);
+	orm(bctype->bytes[0],vtype);
 	}
 
 

@@ -13,6 +13,11 @@
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  *  for more details.
  */
+/*      the-grue - 20180809
+ *      Changed lines 227, 270, 714, and 718-720
+ *	to conform to new compiler.
+ */
+
 /*	ASM5.C				part5 of 8088 assembler		*/
 
 #include "ASM88.H"
@@ -224,7 +229,7 @@ number() {
 	char ch;
 	int  fromp,i;
 	long lval;
-	struct { unsigned lo,hi; } ;
+	struct vval{ unsigned lo,hi; } *ival = &lval;
 
 	heir=CONSTANT;
 	fromp=--cur;
@@ -267,7 +272,7 @@ number() {
 				}
 			}
 		}
-	hiword=(&lval)->hi;
+	hiword=ival->hi;
 	wvalue=lval;
 	}
 
@@ -711,12 +716,13 @@ codeb(byt)
 	*inpipe++=byt;
 	}
 
-union {char bytes[2];};
+union codebu{char bytes[2];};
 
 revcodew(wrd)
 	unsigned wrd; {
+	union codebu * codeu = &wrd;
 
-	codeb((&wrd)->bytes[1]);
+	codeb(codeu->bytes[1]);
 	codeb(wrd);
 	}
 

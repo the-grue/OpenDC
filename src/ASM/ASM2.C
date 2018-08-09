@@ -16,6 +16,10 @@
 /*	ASM88	ASSEMBLER FOR 8088					ASM2.C	*/
 
 /*	handle all of the mnumonics	*/
+/*	the-grue - 20180809
+ *	Changed lines 116, 124, 126, and 128 occurrences of "signed"
+ *      reserved word as variable to signedc
+ */
 
 #include "ASM88.H"
 #include "OBJ.H"
@@ -113,7 +117,7 @@ doinst() {
 addtype(type,vleft,vright)
 	char type;
 	int  vleft[],vright[]; {
-	char signed,from;
+	char signedc,from;
 
 	if (vright[VIS] <= OFFV) {
 		if (vleft[VIS] == REGV && vleft[VVAL] == AX) {
@@ -121,11 +125,11 @@ addtype(type,vleft,vright)
 			oconst(vright);
 			}
 		else {
-			signed=(realtype(vleft) == CINT && vright[VIS] == CONSTV &&
+			signedc=(realtype(vleft) == CINT && vright[VIS] == CONSTV &&
 				vright[VVAL] <= 127 && 	vright[VVAL] >= -128) ? 2 : 0;
-			codeb(127+signed+realtype(vleft));
+			codeb(127+signedc+realtype(vleft));
 			orm(type,vleft);
-			if (signed) vright[VT]=CCHAR;
+			if (signedc) vright[VT]=CCHAR;
 			oconst(vright);
 			}
 		}

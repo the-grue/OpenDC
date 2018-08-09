@@ -13,6 +13,10 @@
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  *  for more details.
  */
+/*      the-grue - 20180809
+ *      Changed lines 116-117 to add OpenASM88 header
+ *      and changed lines 470 and 472 to conform to new compiler.
+ */
 /*	ASM88	ASSEMBLER FOR 8088					ASM88.C	*/
 
 #include "ASM88.H"
@@ -113,7 +117,8 @@ init(argc,argv)
 		}
 
 	if (uopt == 0)
-		os("ASM88   8088 Assembler    V1.5    (c) Mark DeSmet, 1982-86\n");
+		os("OpenASM88 8088 Assembler  V0.1    Based on\n");
+		os("ASM88     8088 Assembler  V1.5    (c) Mark DeSmet, 1982-86\n");
 
 	/*	if no temp drive, use default.	*/
 
@@ -466,9 +471,9 @@ endit() {
 		puts("     ");
 		}
 	ohw(offs[1]);
-	puts("code   ");
+	printf("code   ");
 	ohw(offs[0]+offs[2]);
-	puts("data   ");
+	printf("data   ");
 	if (is_big) {
 		ohw(offs[3]+offs[4]);
 		puts("extra   ");
