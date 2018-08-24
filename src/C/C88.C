@@ -13,6 +13,9 @@
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  *  for more details.
  */
+/*      the-grue - 20180823
+ *      Added lines to add OpenC88 header
+ */
 /*	 C88 COMPILER			C88.C	*/
 
 #include "PASS1.H"
@@ -43,6 +46,7 @@ main(argc,argv)
 	int  i;
 
 #if LIMITED
+	os("OpenC88 Compiler  V0.1    Based on\n");
 	os("C88 Compiler    Special Version   V3.01    (c) Mark DeSmet, 1986\n");
 #else
 	i=2;
@@ -60,7 +64,11 @@ main(argc,argv)
 	endit();
 	}
 
-static showVersion(void){os("C88 Compiler V3.1h  Copyright Mark DeSmet, 1982-1989\n");}
+static showVersion(void)
+{
+	os("OpenC88 Compiler  V0.1    Based on\n");
+	os("C88 Compiler V3.1h  Copyright Mark DeSmet, 1982-1989\n");
+}
 
 init(argc,argv)
 	int  argc;

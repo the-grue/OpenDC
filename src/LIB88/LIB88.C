@@ -13,6 +13,9 @@
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  *  for more details.
  */
+/*      the-grue - 20180823
+ *      Added line add OpenLIB88 header
+ */
 /*		Librarian for ASM88 and C88	*/
 
 #include "OBJ.H"
@@ -74,7 +77,8 @@ main(argc,argv)
 	char *argv[]; {
 	int i;
 
-	puts("Librarian for C88 and ASM88     V2.1A    (c) Mark DeSmet, 1982,83,84,2005\n");
+	puts("OpenLib88 V0.1    Based on");
+	puts("Librarian for C88 and ASM88     V2.1A    (c) Mark DeSmet, 1982,83,84,2005");
 	init(argc,argv);
 	nextpass(1);
 	/*	eliminate modules that depend upon others from list of wanted mods */

@@ -1,4 +1,4 @@
-c88 bind %1
+c88 bind %1 px
 if errorlevel 1 goto stop
 
 if .%1.==.c. goto generate_chk
