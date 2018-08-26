@@ -40,6 +40,9 @@ if errorlevel 1 goto stop
 asm88 DATES %1
 if errorlevel 1 goto stop
 
+c88 ECVT px %1
+if errorlevel 1 goto stop
+
 c88 EXP px %1
 if errorlevel 1 goto stop
 
