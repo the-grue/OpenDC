@@ -1,7 +1,10 @@
 /*
-/* free: prints the amount of free space available on the indicated disk
-/*
-/* written by Michael Ouye 8/21/84.
+ * free: prints the amount of free space available on the indicated disk
+ *
+ * written by Michael Ouye 8/21/84.
+ *      the-grue - 20180825
+ *      Modified code to accurately display output
+ *
 */
 
 unsigned avail, total, sectors, bytes;
@@ -44,6 +47,6 @@ main(argc, argv)
 		puts("bad device\n");
 		exit(1);
 		}
-	printf("%D bytes available\n", how_much);
+	printf("%lu bytes available\n", how_much);
 	exit(0);
 	}
