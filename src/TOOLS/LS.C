@@ -1,7 +1,10 @@
 /*
-/*  ls: a unix-styled directory listing program.
-/*
-/*	written by Michael Ouye, 7/1/84
+ *  ls: a unix-styled directory listing program.
+ *
+ *	written by Michael Ouye, 7/1/84
+ *      the-grue - 20180825
+ *      Added OpenLS header
+ *      Modified code to accurately display output
 */
 
 
@@ -119,13 +122,14 @@ main(argc, argv)
 					case 'r': reverse_order = 1; break;
 					case '1': single_column = 1; break;
 					case '?':
-						puts("  syntax: ls [ -ltr1?] <path> ...\n");
-						puts("     -l: long format listing\n");
-						puts("     -t: sort by modification time\n");
-						puts("     -r: reverse the sort order\n");
-						puts("     -1: single column listing\n");
-						puts("     -?: this message\n");
-						puts("\n  written by Michael Ouye, 8/21/84\n");
+						printf("OpenLS v0.1             8/25/2018\n\n");
+						printf("  syntax: ls [ -ltr1?] <path> ...\n");
+						printf("     -l: long format listing\n");
+						printf("     -t: sort by modification time\n");
+						printf("     -r: reverse the sort order\n");
+						printf("     -1: single column listing\n");
+						printf("     -?: this message\n");
+						printf("\n  written by Michael Ouye, 8/21/84\n");
 						exit(0);
 						break;
 					}
@@ -216,7 +220,7 @@ print_entries() {
 			else
 				type_attr = '-';
 
-			printf("%14s    %c%c%c    %8D    %2d:%1d%1d%c    %d-%d-%d", 
+			printf("%14s    %c%c%c    %8lu    %2d:%1d%1d%c    %d-%d-%d", 
 					e_buf, 
 					type_attr, 'r', access_attr,
 					entry[i].e_file_size,
@@ -229,15 +233,15 @@ print_entries() {
 					(entry[i].e_date >> 9) + 1980);
 			}
 		else
-			puts(e_buf);
+			printf(e_buf);
 		reps++;
 		if (reps >= max_reps) {
-			puts("\n");
+			printf("\n");
 			reps = 0;
 			}
 		total += entry[i].e_file_size;
 		}
-	if (reps != 0) puts("\n");
-	printf("\n%d entries with %D total bytes\n", entries, total);
+	if (reps != 0) printf("\n");
+	printf("\n%d entries with %lu total bytes\n", entries, total);
 	}
 

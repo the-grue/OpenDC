@@ -2,7 +2,7 @@
 # Makefile for all of the tools on this disk
 #  simply 
 
-$C88FLAGS -td -c
+$C88FLAGS -t -c -px
 
 tools	[ more.exe rm.exe ls.exe  free.exe grep.exe
 			pcmake.exe fastscr.exe merge.exe toolbox.s ]

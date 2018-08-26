@@ -262,6 +262,9 @@ if errorlevel 1 goto stop
 c88 _DOPRINT px %1
 if errorlevel 1 goto stop
 
+c88 _DOSCAN px %1
+if errorlevel 1 goto stop
+
 c88 _INTRND px %1
 if errorlevel 1 goto stop
 
