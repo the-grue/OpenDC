@@ -13,6 +13,9 @@
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  *  for more details.
  */
+/*      the-grue - 20180828
+ *      Add OpenSquish header
+ */
 /*	SQUISH.C		Object Squisher for C88	*/
 
 #include "OBJ.H"
@@ -68,7 +71,8 @@ init(argc,argv)
 	int  nin,i,endn,ffile;
 	char renname[65];
 
-	puts("Squisher for C88 and ASM88     V1.0    (c) Mark DeSmet, 1986\n");
+	puts("OpenSquish    V0.1  Based on");
+	puts("Squisher for C88 and ASM88     V1.0    (c) Mark DeSmet, 1986");
 	if (argc < 2) ferror("missing filename","");
 	strcpy(inname,argv[1]);
 	i=0;
