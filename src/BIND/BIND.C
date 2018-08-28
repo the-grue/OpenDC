@@ -222,8 +222,8 @@ init(argc,argv)
 							break;
 				case '_':	under_opt=1;
 							break;
-				default:	puts("bad argument ");
-							puts(argat-1);
+				default:	printf("bad argument ");
+							printf(argat-1);
 							ocrlf();
 							nerr++;
 				}
@@ -727,8 +727,8 @@ between() {
 			*resptr+=add;
 			}
 		else if (found->edefn == LOTHER && found->eused) {
-			puts("undefined PUBLIC - ");
-			puts(nameptr);
+			printf("undefined PUBLIC - ");
+			printf(nameptr);
 			ocrlf();
 			nerr++;
 			}
@@ -1142,10 +1142,10 @@ find(pass)
 						}
 					while (tlen--);
 					if (dif && pass == 1) {
-						puts("conflicting types for ");
-						puts(name);
-						puts(" in ");
-						puts(inname);
+						printf("conflicting types for ");
+						printf(name);
+						printf(" in ");
+						printf(inname);
 						putchar('\n');
 						}
 					}
@@ -1330,7 +1330,7 @@ endup() {
 	nummod/=7;
 #if LIMITED == 0
 	if (see_exit == 0) {
-		puts("end of BIND        ");
+		printf("end of BIND        ");
 		onum(util > nummod ? util: nummod);
 		puts("% utilization    ");
 		}
@@ -1398,20 +1398,20 @@ ferror(str1,str2)
 	char *str1,*str2; {
 
 	ocrlf();
-	puts(str1);
-	puts(str2);
-	puts("     BIND abandoned\n");
+	printf(str1);
+	printf(str2);
+	printf("     BIND abandoned\n");
 	exit(2);
 	}
 
 error(str1,str2)
 	char *str1,*str2; {
 
-	puts(inname);
-	puts(" - ");
-	puts(str1);
+	printf(inname);
+	printf(" - ");
+	printf(str1);
 	putchar(' ');
-	puts(str2);
+	printf(str2);
 	ocrlf();
 	nerr++;
 	}
