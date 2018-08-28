@@ -13,6 +13,9 @@
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  *  for more details.
  */
+/*      the-grue - 20180828
+ *      Add Opennbind header
+ */
 /*	BIND.C		binder for ASM88 and C88	*/
 
 #define IBM		1			/*	true if creating BIND for MS-DOS	*/
@@ -120,7 +123,10 @@ main(argc,argv)
 	i=2;
 	while (i < argc) if (*(argv[i++]+1) == '@') see_exit=1;
 	if (see_exit == 0)
+	{
+		fputs("Opennbind v0.1  based on\n",2);
 		fputs("Object Module Linker X3.0b  Copyright Mark DeSmet, 1988\n",2);
+	}
 #endif
 	init(argc,argv);
 	nextpass(1);
