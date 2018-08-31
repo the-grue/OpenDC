@@ -1,4 +1,6 @@
-c88 d88 %1
+echo off
+
+c88 d88 -px %1
 if errorlevel 1 goto stop
 
 c88 tokit %1

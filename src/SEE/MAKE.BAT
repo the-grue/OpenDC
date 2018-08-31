@@ -1,3 +1,5 @@
+echo off
+
 c88 see -px
 if errorlevel 1 goto oops
 

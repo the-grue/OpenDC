@@ -13,6 +13,9 @@
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  *  for more details.
  */
+/*      the-grue - 20180830
+ *      Changed to conform to new compiler.
+ */
 /*	D88.H  --	DEBUGGER FOR C88 PACKAGE	*/
 #define OPTYPE		11	/* O		name of public, type. */
 #define OLTYPE		12	/* O		name of local, type, offset from BP. */
@@ -82,7 +85,7 @@ extern char ltype[128];
 
 char operator[5];
 
-union  { char byte; int word; } ;
+union ubywo { char byte; int word; } ;
 struct { unsigned loword,hiword; } ;
 
 #define CCHAR		1

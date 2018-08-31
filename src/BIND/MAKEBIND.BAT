@@ -1,3 +1,4 @@
+echo off
 c88 bind %1 px
 if errorlevel 1 goto stop
 

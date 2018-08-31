@@ -1,3 +1,5 @@
+echo off
+
 c88 ABORT px %1
 if errorlevel 1 goto stop
 

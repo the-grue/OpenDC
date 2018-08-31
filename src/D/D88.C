@@ -13,6 +13,9 @@
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  *  for more details.
  */
+/*      the-grue - 20180830
+ *      Changed several things to conform to new compiler.
+ */
 /*	D88.C  --	DEBUGGER FOR C88 PACKAGE	*/
 
 #define IBM 1
@@ -97,7 +100,8 @@ main(argc,argv)
 	scr_clr();
 	lineno=5;
 	cursor();
-	dputs("D88 Debugger V1.6       (c) Mark DeSmet 1984,85,86");
+	dputs("OpenD88 v0.1   Based on ");
+	dputs("D88 Debugger V1.6 (c) Mark DeSmet 1984,85,86");
 	lf();
 	setjmp(0);
 	cmd++;
@@ -570,6 +574,7 @@ collection() {
 	struct vstruct vt,newvt;
 	int numrpt,i,lastoff,len;
 	char *typ;
+	struct sloty {unsigned loc; char type [1];} *smemat;
 
 	numrpt=10;
 	if (repeat) numrpt=repeat;
@@ -604,22 +609,24 @@ collection() {
 
 		lastsym=memat;
 		while (*memat++) ;
-		vt.val.valu-=memat->loc;
+		smemat = (struct sloty *) &memat;
+		vt.val.valu-=smemat->loc;
 		lastoff=0;
 		while (1) {
 			memat=lastsym;
 			while (*memat++) ;
-			if (*lastsym != OMTYPE || memat->loc < lastoff) break;
+			smemat = (struct sloty *) &memat;
+			if (*lastsym != OMTYPE || smemat->loc < lastoff) break;
 			if (col > 60) {
 				lf();
 				}
 			xscr_co('.');
 			dputs(lastsym+2);
 			xscr_co('=');
-			lastoff=memat->loc;
+			lastoff=smemat->loc;
 			vt.val.valu+=lastoff;
 			_move(12,&vt,&newvt);
-			newvt.typep=&memat->type[1];
+			newvt.typep=&smemat->type[1];
 			print_val(&newvt);
 			dputs("   ");
 			vt.val.valu-=lastoff;
@@ -741,6 +748,7 @@ list(nlist)
 	char ch,xname[60],match,*ptr,lline[130],lastch,*oldneed;
 	int i;
 	unsigned listwant,oldcur;
+	struct slocum { char lchar,llen; unsigned llline,lloc; char lbyte; } *sloc, *sloc2;
 	
 	match=0;
 	listwant=listnum;
@@ -873,10 +881,13 @@ need_line:
 
 		if (nlist == 2) {
 			ptr=needline+*(needline+1);
-			if (*ptr == OLINE && needline->lloc == ptr->lloc) {
+			sloc = (struct slocum *) needline;
+			sloc2 = (struct slocum *) ptr;
+			if (*ptr == OLINE && sloc->lloc == sloc2->lloc) {
 				oldcur=curline;
 				oldneed=needline;
-				curline=ptr->lline;
+				sloc2 = (struct slocum *) ptr;
+				curline=sloc2->llline;
 				needline=ptr;
 				lf();
 				list(2);
@@ -1031,6 +1042,8 @@ variables() {
 	int i,j,len,pad,inproc,temp;
 	unsigned *wp,nline;
 	struct vstruct vt;
+	struct sloty { unsigned loc; char type [1];} *psloty;
+	struct zloty { unsigned zzloc,loc_seg; char big_type [1];} *pzloty;
 
 	inproc=0;
 	def=0;
@@ -1087,8 +1100,9 @@ variables() {
 				dputs(" = ");
 				ptr=localat[i];
 				while (*ptr++) ;
-				vt.val.valu=ptr->loc+rbp;
-				vt.typep=&ptr->type[1];
+				psloty = (struct sloty *) ptr;
+				vt.val.valu=psloty->loc+rbp;
+				vt.typep=&psloty->type[1];
 				if (is_big) *(&vt.val.valu+1)=origss;
 				vt.vtype=RMV;
 				print_val(&vt);
@@ -1127,12 +1141,14 @@ variables() {
 					dputs(" = ");
 					ptr=lastsym;
 					while (*ptr++) ;
-					vt.val.valu=ptr->loc;
-					vt.typep=&ptr->type[1];
+					psloty = (struct sloty *) ptr;
+					vt.val.valu=psloty->loc;
+					vt.typep=&psloty->type[1];
 					if (is_big) {
 						wp=&vt.val.valu;
-						*(wp+1)=ptr->loc_seg;
-						vt.typep=&ptr->big_type[1];
+						pzloty = (struct zloty *) ptr;
+						*(wp+1)=pzloty->loc_seg;
+						vt.typep=&pzloty->big_type[1];
 						}
 					vt.vtype=RMV;
 					print_val(&vt);
@@ -1240,6 +1256,10 @@ where() {
 	procseg=0;
 	numlocal=0;
 	inproc=0;
+	struct slocum { char lchar,llen; unsigned lline,lloc; char lbyte; } *sloc;
+	struct bslocum { char bjunk[6]; unsigned lloc_seg; char big_lbyte; } *bsloc;
+	struct zlocum { unsigned zzloc,loc_seg; char big_type [1];} *zloc;
+	struct sloty { unsigned loc; char type [1];} *pslot;
 
 	if (overley_at) overley=_peek(overley_at,origds);
 	ovnum=0;
@@ -1249,29 +1269,34 @@ where() {
 		if (*lastsym == OOV) ovnum=*(lastsym+2);
 		if (ovnum != 0 && ovnum != overley) continue;
 		if (*lastsym == OLINE) {
-			if (lastsym->lloc <= rip && lastsym->lloc >= lineloc) { 
-				if (is_big && lastsym->lloc_seg != rcs) continue;
+			sloc = (struct slocum *) lastsym;
+			if (sloc->lloc <= rip && sloc->lloc >= lineloc) { 
+				bsloc = (struct bslocum *) lastsym;
+				if (is_big && bsloc->lloc_seg != rcs) continue;
 				curname=thisname;
-				curline=lastsym->lline;
-				lineloc=lastsym->lloc;
+				curline=sloc->lline;
+				lineloc=sloc->lloc;
 				}
 			}
 		else switch (*lastsym) {
 			case OPTYPE:	locat=lastsym;
 							while (*locat++) ;
-							proc_type=locat->type[1];
+							pslot = (struct sloty *) locat;
+							proc_type=pslot->type[1];
 							if (is_big) {
-								if (locat->loc_seg != rcs) break;
-								proc_type=locat->big_type[1];
+								zloc = (struct zlocum *) locat;
+								if (zloc->loc_seg != rcs) break;
+								proc_type=zloc->big_type[1];
 								}
 							if (proc_type == FUNCTION) {
-								if (locat->loc > procloc && locat->loc <= rip) {
+								pslot = (struct sloty *) locat;
+								if (pslot->loc > procloc && pslot->loc <= rip) {
 									curproc=lastsym+2;
-									procloc=locat->loc;
+									procloc=pslot->loc;
 									procseg=rcs;
 									}
-								else if (locat->loc > rip && locat->loc < procend) {
-									procend=locat->loc;
+								else if (pslot->loc > rip && pslot->loc < procend) {
+									procend=pslot->loc;
 									procseg=rcs;
 									}
 								}

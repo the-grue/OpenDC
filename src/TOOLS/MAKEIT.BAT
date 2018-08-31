@@ -1,3 +1,5 @@
+echo off
+
  c88 MORE.C  -T -C -PX
 IF ERRORLEVEL 1 GOTO stop
  c88 FINDFILE.C  -T -C -PX

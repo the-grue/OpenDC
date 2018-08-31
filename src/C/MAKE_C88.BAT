@@ -1,3 +1,5 @@
+echo off
+
 asm88 chain
 if errorlevel 1 goto stop
 

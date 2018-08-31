@@ -1,3 +1,5 @@
+echo off
+
 asm88 _lmov
 if errorlevel 1 goto stop
 

@@ -13,6 +13,9 @@
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  *  for more details.
  */
+/*      the-grue - 20180830
+ *      Changed to conform to new compiler.
+ */
 /*	TOKIT.C  --	Expression analyzer for D88 debugger	*/
 
 #include "debug.h"
@@ -617,7 +620,7 @@ asgnvt(vleft,vright)
 	if (tpl == CUNSG) vright.val.vall=vright.val.valu;
 	if (vleft.vtype == REGV) {
 		toint(vright);
-		(&rax+vleft.val.valu)->word=vright.val.valu;
+		(&rax+(struct ubywo *)vleft.val.valu)->word=vright.val.valu;
 		}
 	else if (vleft.vtype != RMV) error("illegal assignment");
 	else {
@@ -842,9 +845,9 @@ longof(ptr)
 						break;
 		case CDOUBLE:	len=8;
 						break;
-		case ARRAY:		len=(ptr+1).word*longof(ptr+3);
+		case ARRAY:		len=((union ubywo *)ptr+1).word*longof(ptr+3);
 						break;
-		case CSTRUCT:	len=(ptr+1).word;
+		case CSTRUCT:	len=((union ubywo *)ptr+1).word;
 		}
 	return len;
 	}

@@ -355,7 +355,7 @@ endit() {
 	if (zopt) asm_size();
 	os("     ");
 	ounum(util);
-	os("% Utilization    ");
+	os("% Utilization   \n");
 	if (mopt && zopt) {
 		if (nextpgm[0] != 'Z') _chain(nextpgm);	/* execute toobj	*/
 		else _chain(&nextpgm[2]);
