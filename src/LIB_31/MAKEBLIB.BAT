@@ -1,282 +1,284 @@
 echo off
 
-c88 ABORT px %1
+c88 ABORT px b %1
 if errorlevel 1 goto stop
 
-asm88 ACCESS %1
+asm88 ACCESS b %1
 if errorlevel 1 goto stop
 
-c88 ASIN px %1
+c88 ASIN px b %1
 if errorlevel 1 goto stop
 
-c88 ATAN px %1
+c88 ATAN px b %1
 if errorlevel 1 goto stop
 
-c88 ATAN2 px %1
+c88 ATAN2 px b %1
 if errorlevel 1 goto stop
 
-c88 ATAN7 px %1
+c88 ATAN7 px b %1
 if errorlevel 1 goto stop
 
-asm88 ATOL %1
+asm88 ATOL b %1
 if errorlevel 1 goto stop
 
-c88 BSEARCH px %1
+c88 BSEARCH px b %1
 if errorlevel 1 goto stop
 
-asm88 BUILTIN %1
+asm88 BUILTIN b %1
 if errorlevel 1 goto stop
 
-asm88 CHDIR %1
+asm88 CHDIR b %1
 if errorlevel 1 goto stop
 
-c88 CHSIZE px %1
+c88 CHSIZE px b %1
 if errorlevel 1 goto stop
 
-c88 CREAT3 px %1
+c88 CREAT3 px b %1
 if errorlevel 1 goto stop
 
-c88 CTYPE px %1
+c88 CTYPE px b %1
 if errorlevel 1 goto stop
 
-asm88 DATES %1
+asm88 DATES b %1
 if errorlevel 1 goto stop
 
-c88 ECVT px %1
+c88 ECVT px b %1
 if errorlevel 1 goto stop
 
-c88 EXP px %1
+c88 EXP px b %1
 if errorlevel 1 goto stop
 
-c88 EXP10 px %1
+c88 EXP10 px b %1
 if errorlevel 1 goto stop
 
-asm88 EXPA %1
+asm88 EXPA b %1
 if errorlevel 1 goto stop
 
-asm88 FABS %1
+asm88 FABS b %1
 if errorlevel 1 goto stop
 
-asm88 FINPUT %1
+asm88 FINPUT b %1
 if errorlevel 1 goto stop
 
-asm88 FLOAT %1
+asm88 FLOAT b %1
 if errorlevel 1 goto stop
 
-asm88 FLOAT7 %1
+asm88 FLOAT7 b %1
 if errorlevel 1 goto stop
 
-asm88 FLOOR %1
+asm88 FLOOR b %1
 if errorlevel 1 goto stop
 
-asm88 FLOOR7 %1
+asm88 FLOOR7 b %1
 if errorlevel 1 goto stop
 
-asm88 FOUTPUT %1
+asm88 FOUTPUT b %1
 if errorlevel 1 goto stop
 
-c88 FPRINTF px %1
+c88 FPRINTF px b %1
 if errorlevel 1 goto stop
 
-c88 FREXP px %1
+c88 FREXP px b %1
 if errorlevel 1 goto stop
 
-c88 FSCANF px %1
+c88 FSCANF px b %1
 if errorlevel 1 goto stop
 
-c88 FSTUFF px %1
+c88 FSTUFF px b %1
 if errorlevel 1 goto stop
 
-c88 GETENV px %1
+c88 GETENV px b %1
 if errorlevel 1 goto stop
 
-asm88 ISETUP %1
+asm88 ISETUP b %1
 if errorlevel 1 goto stop
 
-c88 ITOA px %1
+c88 ITOA px b %1
 if errorlevel 1 goto stop
 
-c88 LDEXP px %1
+c88 LDEXP px b %1
 if errorlevel 1 goto stop
 
-asm88 LMOVE %1
+asm88 LMOVE b %1
 if errorlevel 1 goto stop
 
-c88 LOG px %1
+c88 LOG px b %1
 if errorlevel 1 goto stop
 
-asm88 LOGA %1
+asm88 LOGA b %1
 if errorlevel 1 goto stop
 
-c88 LOG10 px %1
+c88 LOG10 px b %1
 if errorlevel 1 goto stop
 
-asm88 LTOA %1
+asm88 LTOA b %1
 if errorlevel 1 goto stop
 
-asm88 MALLOC %1
+asm88 MALLOC b %1
 if errorlevel 1 goto stop
 
-asm88 MEMCHR %1
+asm88 MEMCHR b %1
 if errorlevel 1 goto stop
 
-asm88 MEMCMP %1
+asm88 MEMCMP b %1
 if errorlevel 1 goto stop
 
-asm88 MEMCPY %1
+asm88 MEMCPY b %1
 if errorlevel 1 goto stop
 
-asm88 MEMICMP %1
+asm88 MEMICMP b %1
 if errorlevel 1 goto stop
 
-asm88 MEMMOVE %1
+asm88 MEMMOVE b %1
 if errorlevel 1 goto stop
 
-asm88 MEMSET %1
+asm88 MEMSET b %1
 if errorlevel 1 goto stop
 
-c88 MODF px %1
+c88 MODF px b %1
 if errorlevel 1 goto stop
 
-c88 MOVERLAY px %1
+rem c88 MOVERLAY px b %1
+rem MOVERLAY not in big library
 if errorlevel 1 goto stop
 
-asm88 MSVER2 %1
+asm88 MSVER2 b %1
 if errorlevel 1 goto stop
 
-c88 MTAN px %1
+c88 MTAN px b %1
 if errorlevel 1 goto stop
 
-asm88 MTANA %1
+asm88 MTANA b %1
 if errorlevel 1 goto stop
 
-asm88 MULDIV %1
+asm88 MULDIV b %1
 if errorlevel 1 goto stop
 
-c88 NEWLIB px %1
+c88 NEWLIB px b %1
 if errorlevel 1 goto stop
 
-c88 OVERLAY px %1
+rem c88 OVERLAY px b %1
+rem OVERLAY not in big library
 if errorlevel 1 goto stop
 
-asm88 PEEKPOKE %1
+asm88 PEEKPOKE b %1
 if errorlevel 1 goto stop
 
-c88 POW px %1
+c88 POW px b %1
 if errorlevel 1 goto stop
 
-c88 PRINTF px %1
+c88 PRINTF px b %1
 if errorlevel 1 goto stop
 
-c88 PUTENV px %1
+c88 PUTENV px b %1
 if errorlevel 1 goto stop
 
-c88 QSORT px %1
+c88 QSORT px b %1
 if errorlevel 1 goto stop
 
-c88 RAND px %1
+c88 RAND px b %1
 if errorlevel 1 goto stop
 
-c88 RERRNO px %1
+c88 RERRNO px b %1
 if errorlevel 1 goto stop
 
-c88 SCANF px %1
+c88 SCANF px b %1
 if errorlevel 1 goto stop
 
-asm88 SETJMP %1
+asm88 SETJMP b %1
 if errorlevel 1 goto stop
 
-c88 SIN px %1
+c88 SIN px b %1
 if errorlevel 1 goto stop
 
-c88 SPRINTF px %1
+c88 SPRINTF px b %1
 if errorlevel 1 goto stop
 
-asm88 SQRT %1
+asm88 SQRT b %1
 if errorlevel 1 goto stop
 
-asm88 STRCAT %1
+asm88 STRCAT b %1
 if errorlevel 1 goto stop
 
-asm88 STRCHR %1
+asm88 STRCHR b %1
 if errorlevel 1 goto stop
 
-asm88 STRCMP %1
+asm88 STRCMP b %1
 if errorlevel 1 goto stop
 
-asm88 STRCPY %1
+asm88 STRCPY b %1
 if errorlevel 1 goto stop
 
-c88 STRDUP px %1
+c88 STRDUP px b %1
 if errorlevel 1 goto stop
 
-asm88 STRINGI %1
+asm88 STRINGI b %1
 if errorlevel 1 goto stop
 
-asm88 STRLEN %1
+asm88 STRLEN b %1
 if errorlevel 1 goto stop
 
-c88 STRLWR px %1
+c88 STRLWR px b %1
 if errorlevel 1 goto stop
 
-asm88 STRRCHR %1
+asm88 STRRCHR b %1
 if errorlevel 1 goto stop
 
-c88 STRREV px %1
+c88 STRREV px b %1
 if errorlevel 1 goto stop
 
-c88 STRSET px %1
+c88 STRSET px b %1
 if errorlevel 1 goto stop
 
-c88 STRSTR px %1
+c88 STRSTR px b %1
 if errorlevel 1 goto stop
 
-c88 STRTOD px %1
+c88 STRTOD px b %1
 if errorlevel 1 goto stop
 
-c88 STRTOK px %1
+c88 STRTOK px b %1
 if errorlevel 1 goto stop
 
-c88 STRTOL px %1
+c88 STRTOL px b %1
 if errorlevel 1 goto stop
 
-c88 STRUPR px %1
+c88 STRUPR px b %1
 if errorlevel 1 goto stop
 
-c88 SYSTEM px %1
+c88 SYSTEM px b %1
 if errorlevel 1 goto stop
 
-c88 TAN px %1
+c88 TAN px b %1
 if errorlevel 1 goto stop
 
-asm88 UMULDIV %1
+asm88 UMULDIV b %1
 if errorlevel 1 goto stop
 
-asm88 UPPER %1
+asm88 UPPER b %1
 if errorlevel 1 goto stop
 
-asm88 _ADX %1
+asm88 _ADX b %1
 if errorlevel 1 goto stop
 
-c88 _AINTRND px %1
+c88 _AINTRND px b %1
 if errorlevel 1 goto stop
 
-c88 _DOPRINT px %1
+c88 _DOPRINT px b %1
 if errorlevel 1 goto stop
 
-c88 _DOSCAN px %1
+c88 _DOSCAN px b %1
 if errorlevel 1 goto stop
 
-c88 _INTRND px %1
+c88 _INTRND px b %1
 if errorlevel 1 goto stop
 
-c88 _PI px %1
+c88 _PI px b %1
 if errorlevel 1 goto stop
 
-c88 _PI_2 px %1
+c88 _PI_2 px b %1
 if errorlevel 1 goto stop
 
-lib88 -fmakelib.lst -omylib.s
-lib88 -fmakelib7.lst -omylib7.s
+lib88 -fmakeblib.lst -obmylib.s
+lib88 -fmakblib7.lst -obmylib7.s
 
 :stop

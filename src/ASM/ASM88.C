@@ -476,7 +476,7 @@ endit() {
 	printf("data   ");
 	if (is_big) {
 		ohw(offs[3]+offs[4]);
-		puts("extra   ");
+		printf("extra   ");
 		}
 	util2=(freem-memover)/((memend-memover)/100)+1;
 	ounum(util2 > util ? util2: util);
