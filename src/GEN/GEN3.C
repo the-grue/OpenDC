@@ -441,8 +441,8 @@ genasgn(node,vtype)
 		if (lnode[VT] == CLONG || lnode[VT] == PTRTO) forcel(vtype);
 		else vtype[VT]=lnode[VT];
 		}
-	if (lnode[VT] == CCHAR) {
-		if (vtype[VT] != CCHAR) forcebyt(vtype);
+	if (lnode[VT] == CCHAR || lnode[VT] == CSCHAR) {
+		if (vtype[VT] != CCHAR && vtype[VT] != CSCHAR) forcebyt(vtype);
 		}
 	else if (vtype[VT] == CCHAR || vtype[VT] == CSCHAR) {
 		forceint(vtype);
