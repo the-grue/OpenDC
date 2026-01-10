@@ -180,6 +180,7 @@ muldiv(type,vtype,lnode)
 genadd(vtype,lnode)
 	int  vtype[],lnode[]; {
 	int  used;
+	int  vchar, lchar;
 
 	if (lnode[VIS] == CONSTV) {
 		if (lnode[VVAL] == 0) return;
@@ -217,9 +218,11 @@ genadd(vtype,lnode)
 	else {
 		if (lnode[VT] == PTRTO) flip(lnode,vtype);
 		if (vtype[VT] != lnode[VT]) {
-			if (vtype[VT] == CCHAR || vtype[VT] == CSCHAR) forceint(vtype);
-			else if (lnode[VT] == CCHAR || lnode[VT] == CSCHAR) forceint(lnode);
-			}
+			vchar = (vtype[VT] == CCHAR || vtype[VT] == CSCHAR);
+			lchar = (lnode[VT] == CCHAR || lnode[VT] == CSCHAR);
+			if (vchar && !lchar) forceint(vtype);
+			else if (!vchar && lchar) forceint(lnode);
+		}
 		forcerm(lnode);
 		forcereg(vtype);
 		alterv(vtype);
@@ -231,6 +234,7 @@ genadd(vtype,lnode)
 
 gensub(vtype,lnode)
 	int  vtype[],lnode[]; {
+	int  vchar, lchar;
 
 	if (lnode[VIS] == CONSTV) {
 		if (lnode[VVAL] == 0) return;
@@ -245,9 +249,12 @@ gensub(vtype,lnode)
 			}
 		}
 	if (lnode[VT] == PTRTO) flip(lnode,vtype);
-	if (lnode[VT] != vtype[VT])
-		if (lnode[VT] == CCHAR || lnode[VT] == CSCHAR) forceint(lnode);
-		else if (vtype[VT] == CCHAR || vtype[VT] == CSCHAR) forceint(vtype);
+	if (lnode[VT] != vtype[VT]) {
+		vchar = (vtype[VT] == CCHAR || vtype[VT] == CSCHAR);
+		lchar = (lnode[VT] == CCHAR || lnode[VT] == CSCHAR);
+		if (vchar && !lchar) forceint(vtype);
+		else if (!vchar && lchar) forceint(lnode);
+	}
 	forcerm(lnode);
 	forcereg(vtype);
 	alterv(vtype);
