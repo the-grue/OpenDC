@@ -187,6 +187,14 @@ forceint(vtype)
 					asm_add(AND86,vtype,tocon(255));
 					}
 				}
+			else if (vtype[VT] == CSCHAR) {
+				if(vtype[VVAL] == AX) asm_cbw();
+				else {
+					asm_xchg(vtype[VVAL], AX);
+					asm_cbw();
+					asm_xchg(vtype[VVAL], AX);
+					}
+				}
 			}
 		vtype[VT]=CINT;
 		}
