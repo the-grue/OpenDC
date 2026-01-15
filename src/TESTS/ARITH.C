@@ -93,19 +93,15 @@ int f5() {
 	// widened to int.
 	i = 2; j = -3; k = i + j;
 	check(k, 255, "add failed: u8 + i8 -> int");
-	printf("%d\n", k);
 
 	i = 125; j = 3; k = i + j;
 	check(k, 128, "add failed: u8 + i8 -> int");
-	printf("%d\n", k);
 
 	i = 1; j = -3; k = i - j;
 	check(k, 4, "subtract failed: u8 - i8 -> int");
-	printf("%d\n", k);
 
 	i = -128; j = 3; k = i - j;
 	check(k, 125, "subtract failed: u8 - i8 -> int");
-	printf("%d\n", k);
 
 	return failures;
 }
