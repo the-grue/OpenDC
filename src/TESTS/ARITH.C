@@ -150,6 +150,26 @@ int f7() {
 
 int f8() {
 	signed char i;
+	unsigned int j, k;
+	int failures = 0;
+
+	i = -2; j = 3; k = i + j;
+	check(k, 1, "add failed: i8 + unsigned -> unsigned");
+
+	i = 125; j = 4; k = i + j;
+	check(k, 129, "add failed: i8 + unsigned -> unsigned");
+
+	i = 5; j = 3; k = i - j;
+	check(k, 2, "subtract failed: i8 - unsigned -> unsigned");
+
+	i = -1; j = 1; k = i - j;
+	check(k, 65534, "subtract failed: i8 - unsigned -> unsigned");
+
+	return failures;
+}
+
+int f9() {
+	signed char i;
 	long j, k;
 	int failures = 0;
 
@@ -179,6 +199,7 @@ int main()
 	failures += f6();
 	failures += f7();
 	failures += f8();
+	failures += f9();
 	printf("tests finished, %d failures.\n", failures);
 	return 0;
 }
