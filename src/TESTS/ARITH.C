@@ -128,6 +128,46 @@ int f6() {
 	return failures;
 }
 
+int f7() {
+	signed char i;
+	int j, k;
+	int failures = 0;
+
+	i = 2; j = -3; k = i + j;
+	check(k, -1, "add failed: i8 + int -> int");
+
+	i = 125; j = 3; k = i + j;
+	check(k, 128, "add failed: i8 + int -> int");
+
+	i = -1; j = -3; k = i - j;
+	check(k, 2, "subtract failed: i8 - int -> int");
+
+	i = -128; j = 3; k = i - j;
+	check(k, -131, "subtract failed: i8 - int -> int");
+
+	return failures;
+}
+
+int f8() {
+	signed char i;
+	long j, k;
+	int failures = 0;
+
+	i = 2; j = -3; k = i + j;
+	check(k, -1, "add failed: i8 + long -> long");
+
+	i = 125; j = 3; k = i + j;
+	check(k, 128, "add failed: i8 + long -> long");
+
+	i = -1; j = -3; k = i - j;
+	check(k, 2, "subtract failed: i8 - long -> long");
+
+	i = -128; j = 3; k = i - j;
+	check(k, -131, "subtract failed: i8 - long -> long");
+
+	return failures;
+}
+
 int main()
 {
 	int failures = 0;
@@ -137,6 +177,8 @@ int main()
 	failures += f4();
 	failures += f5();
 	failures += f6();
+	failures += f7();
+	failures += f8();
 	printf("tests finished, %d failures.\n", failures);
 	return 0;
 }

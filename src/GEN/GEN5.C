@@ -308,6 +308,15 @@ forcel(vtype)
 				asm_move(toreglow(vtype[VVAL]+4),tocon(0));
 				vtype[VT]=CINT;
 				}
+			else if (vtype[VT] == CSCHAR) {
+				if(vtype[VVAL] == AX) asm_cbw();
+				else {
+					asm_xchg(vtype[VVAL], AX);
+					asm_cbw();
+					asm_xchg(vtype[VVAL], AX);
+					}
+				vtype[VT]=CINT;
+				}
 			reg2=vtype[VVAL]+2;
 			if (vtype[VT] != PTRTO) need(regpat[reg2]);
 			regat[reg2]=vtype;
