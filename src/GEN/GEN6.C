@@ -1423,6 +1423,6 @@ dummyw(wrd)
 realtype(vtype)
 	int vtype[]; {
 
-	if (vtype[VT] == CCHAR) return CCHAR;
+	if (vtype[VT] == CCHAR || vtype[VT] == CSCHAR) return CCHAR;
 	return CINT;
 	}
