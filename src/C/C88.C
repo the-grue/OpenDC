@@ -138,8 +138,8 @@ init(argc,argv)
 	dates(mdate);
 	mdate[10]=mdate[7];
 	mdate[9]=mdate[6];
-	mdate[8]='9';
-	mdate[7]='1';
+	mdate[8]='0';
+	mdate[7]='2';
 	mdate[5]=mdate[4];
 	mdate[4]=mdate[3]=='0'?' ':'1';
 	i = mdate[1] - '0';
