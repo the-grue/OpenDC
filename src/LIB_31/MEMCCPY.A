@@ -1,0 +1,75 @@
+;
+;  Released under the GNU LGPL.  See http://www.gnu.org/licenses/lgpl.txt
+;
+;  This program is part of the DeSmet C Compiler
+;
+;  This library is free software; you can redistribute it and/or modify
+;  it under the terms of the GNU Lesser General Public License as published
+;  by the Free Software Foundatation; either version 2.1 of the License, or
+;  any later version.
+;
+;  This library is distributed in the hope that it will be useful, but
+;  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+;  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+;  License for more details.
+;
+; void *memccpy(void *s1, const void *s2, const char c, size_t n);
+
+	cseg
+	public memccpy_
+memccpy_:push	bp
+	mov	bp,sp
+
+	if	LARGE_CASE
+
+	push	ds
+	les	di,[bp+6]
+	lds	si,[bp+10]
+	mov	dx,[bp+14]
+	mov cx,[bp+16]
+
+	else
+
+	mov	ax,ds
+	mov	es,ax
+	mov	di,[bp+4]
+	mov	si,[bp+6]
+	mov	dx,[bp+8]
+	mov cx,[bp+10]
+
+	endif
+
+	jcxz none
+	cld
+l:	lodsb
+	stosb
+	cmp	al,dl
+	je	done
+	loop l
+
+	if	LARGE_CASE
+
+none:	pop ds
+	xor	si,si
+	mov es,si
+	pop bp
+	lret
+
+done:	pop	ds
+	dec	di
+	mov si,di
+	pop	bp
+	lret
+
+	else
+
+none:	xor ax,ax
+	pop	bp
+	ret
+
+done:	mov	ax,di
+	dec	ax
+	pop	bp
+	ret
+
+	endif
