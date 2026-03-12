@@ -141,6 +141,14 @@ fgetc(filenum)
 	return  getc(filenum);
 	}
 
+/*      FGETCHAR        character = fgetchar();         */
+
+fgetchar()
+	{
+
+#define STDIN	0
+	return fgetc(STDIN);
+	}
 
 /*	FPUTC		error = fputc(character, file);	*/
 
@@ -150,3 +158,12 @@ fputc(c,filenum)
 
 	return putc(c,filenum);
 	}
+
+/*      FPUTCHAR        error = fputchar(character);       */
+
+fputchar(c)
+	char c; {
+#define STDOUT	1
+	return fputc(c, STDOUT);
+	}
+
