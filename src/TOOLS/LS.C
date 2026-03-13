@@ -122,7 +122,7 @@ main(argc, argv)
 					case 'r': reverse_order = 1; break;
 					case '1': single_column = 1; break;
 					case '?':
-						printf("OpenLS v0.6                      \n\n");
+						printf("OpenLS v0.7                      \n\n");
 						printf("  syntax: ls [ -ltr1?] <path> ...\n");
 						printf("     -l: long format listing\n");
 						printf("     -t: sort by modification time\n");

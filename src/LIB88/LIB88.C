@@ -77,7 +77,7 @@ main(argc,argv)
 	char *argv[]; {
 	int i;
 
-	puts("OpenLib88 v0.6    Based on");
+	puts("OpenLib88 v0.7    Based on");
 	puts("Librarian for C88 and ASM88     V2.1A    (c) Mark DeSmet, 1982,83,84,2005");
 	init(argc,argv);
 	nextpass(1);
