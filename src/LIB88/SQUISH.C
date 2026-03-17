@@ -71,7 +71,7 @@ init(argc,argv)
 	int  nin,i,endn,ffile;
 	char renname[65];
 
-	puts("OpenSquish    v0.6  Based on");
+	puts("OpenSquish    v0.7  Based on");
 	puts("Squisher for C88 and ASM88     V1.0    (c) Mark DeSmet, 1986");
 	if (argc < 2) ferror("missing filename","");
 	strcpy(inname,argv[1]);

@@ -37,7 +37,7 @@ main(argc,argv)
 	while (i < argc) if (*(argv[i++]+1) == '@') see_exit=1;
 	if (see_exit == 0)
 	{
-		puts("OpenBBind v0.6    Based on");
+		puts("OpenBBind v0.7    Based on");
 		puts("Large Binder for C88 and ASM88     V1.1    (c) Mark DeSmet, 1986-87\n");
 	}
 	init(argc,argv);

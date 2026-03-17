@@ -92,6 +92,9 @@ if errorlevel 1 goto stop
 c88 GETENV px b m %1
 if errorlevel 1 goto stop
 
+c88 GETS px b m %1
+if errorlevel 1 goto stop
+
 asm88 ISETUP b m %1
 if errorlevel 1 goto stop
 
@@ -117,6 +120,9 @@ asm88 LTOA b m %1
 if errorlevel 1 goto stop
 
 asm88 MALLOC b m %1
+if errorlevel 1 goto stop
+
+asm88 MEMCCPY b m %1
 if errorlevel 1 goto stop
 
 asm88 MEMCHR b m %1
@@ -197,6 +203,9 @@ c88 SPRINTF px b m %1
 if errorlevel 1 goto stop
 
 asm88 SQRT b m %1
+if errorlevel 1 goto stop
+
+c88 SSCANF px b m %1
 if errorlevel 1 goto stop
 
 asm88 STRCAT b m %1

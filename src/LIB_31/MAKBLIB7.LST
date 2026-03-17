@@ -80,3 +80,6 @@ _intrnd
 ldexp
 ecvt
 _doscan
+gets
+sscanf
+memccpy
