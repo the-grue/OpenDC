@@ -46,7 +46,7 @@ main(argc,argv)
 	int  i;
 
 #if LIMITED
-	os("OpenC88 Compiler  v0.7    Based on\n");
+	os("OpenC88 Compiler  v0.8    Based on\n");
 	os("C88 Compiler    Special Version   V3.01    (c) Mark DeSmet, 1986\n");
 #else
 	i=2;
@@ -66,7 +66,7 @@ main(argc,argv)
 
 static showVersion(void)
 {
-	os("OpenC88 Compiler  v0.7    Based on\n");
+	os("OpenC88 Compiler  v0.8    Based on\n");
 	os("C88 Compiler V3.1h  Copyright Mark DeSmet, 1982-1989\n");
 }
 

@@ -117,7 +117,7 @@ init(argc,argv)
 		}
 
 	if (uopt == 0)
-		os("OpenASM88 8088 Assembler  v0.7    Based on\n");
+		os("OpenASM88 8088 Assembler  v0.8    Based on\n");
 		os("ASM88     8088 Assembler  V1.5    (c) Mark DeSmet, 1982-86\n");
 
 	/*	if no temp drive, use default.	*/
