@@ -1,0 +1,137 @@
+both : cc.exe o88.exe
+
+cc.exe : obj\cc.o
+	bind \c88\exec obj\cc -s1000 -occ -pcc.map -_
+
+o88.exe : obj\o88.o obj\utils.o obj\8088-pt1.o obj\8088-pt2.o\
+	      obj\8088-pt3.o obj\80188.o obj\8087.o obj\labels.o\
+	      obj\asmlib.o obj\allocate.o obj\squeeze.o obj\jumps.o\
+	      obj\folding.o obj\buffers.o obj\cleanup.o\
+	      obj\linklist.o obj\parse.o obj\gather.o obj\data.o
+	bind -ffiles -oo88 -po88.map -_
+
+obj\cc.o : src\cc.c inc\o88.h inc\cc.stk inc\macros.h makefile inc\version.h
+	cc src\cc -oobj\cc -px -nOLD_ASM88 /sinc\cc.stk
+
+obj\gather.o : src\gather.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\gather -oobj\gather -px /sinc\o88.stk
+
+obj\o88.o : src\o88.c inc\o88.h inc\o88.stk inc\macros.h inc\version.h
+	cc src\o88 -oobj\o88 -px /sinc\o88.stk
+
+obj\parse.o : src\parse.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\parse -oobj\parse -px /sinc\o88.stk
+
+obj\utils.o : src\utils.c inc\o88.h inc\o88.stk inc\macros.h inc\version.h
+	cc src\utils -oobj\utils -px /sinc\o88.stk
+
+obj\8088-pt1.o : src\8088-pt1.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\8088-pt1 -oobj\8088-pt1 -px /sinc\o88.stk
+
+obj\8088-pt2.o : src\8088-pt2.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\8088-pt2 -oobj\8088-pt2 -px /sinc\o88.stk
+
+obj\8088-pt3.o : src\8088-pt3.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\8088-pt3 -oobj\8088-pt3 -px /sinc\o88.stk
+
+obj\80188.o : src\80188.c inc\o88.h inc\o88.stk inc\macros.h makefile
+	cc src\80188 -oobj\80188 -px -nOLD_ASM88 /sinc\o88.stk
+
+obj\8087.o : src\8087.c inc\o88.h inc\o88.stk inc\macros.h makefile
+	cc src\8087 -oobj\8087 -px -nPRODUCTION /sinc\o88.stk
+
+obj\labels.o : src\labels.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\labels -oobj\labels -px /sinc\o88.stk
+
+obj\asmlib.o : src\asmlib.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\asmlib -oobj\asmlib -px /sinc\o88.stk
+
+obj\allocate.o : src\allocate.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\allocate -oobj\allocate -px /sinc\o88.stk
+
+obj\squeeze.o : src\squeeze.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\squeeze -oobj\squeeze -px /sinc\o88.stk
+
+obj\jumps.o : src\jumps.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\jumps -oobj\jumps -px /sinc\o88.stk
+
+obj\folding.o : src\folding.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\folding -oobj\folding -px /sinc\o88.stk
+
+obj\buffers.o : src\buffers.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\buffers -oobj\buffers -px /sinc\o88.stk
+
+obj\cleanup.o : src\cleanup.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\cleanup -oobj\cleanup -px /sinc\o88.stk
+
+obj\linklist.o : src\linklist.c inc\o88.h inc\o88.stk inc\macros.h
+	cc src\linklist -oobj\linklist -px /sinc\o88.stk
+
+obj\data.o : src\data.c inc\o88.h inc\o88.stk
+	cc src\data -oobj\data -px /sinc\o88.stk
+
+lint : lint\8088-pt2.l lint\80188.l lint\8088-pt1.l lint\8087.l \
+	lint\asmlib.l lint\o88.l lint\labels.l lint\8088-pt3.l \
+	lint\allocate.l lint\squeeze.l lint\jumps.l lint\folding.l \
+	lint\buffers.l lint\cc.l lint\cleanup.l lint\linklist.l \
+	lint\parse.l lint\gather.l lint\utils.l lint\data.l
+
+lint\cc.l : src\cc.c inc\o88.h inc\macros.h
+	lint -dOLD_ASM88 src\cc >lint\cc.l
+
+lint\gather.l : src\gather.c inc\o88.h inc\macros.h
+	lint src\gather >lint\gather.l
+
+lint\o88.l : src\o88.c inc\o88.h inc\macros.h inc\version.h
+	lint src\o88 >lint\o88.l
+
+lint\parse.l : src\parse.c inc\o88.h inc\macros.h
+	lint src\parse >lint\parse.l
+
+lint\utils.l : src\utils.c inc\o88.h inc\macros.h inc\version.h
+	lint src\utils >lint\utils.l
+
+lint\8088-pt1.l : src\8088-pt1.c inc\o88.h inc\macros.h
+	lint src\8088-pt1 >lint\8088-pt1.l
+
+lint\8088-pt2.l : src\8088-pt2.c inc\o88.h inc\macros.h
+	lint src\8088-pt2 >lint\8088-pt2.l
+
+lint\8088-pt3.l : src\8088-pt3.c inc\o88.h inc\macros.h
+	lint src\8088-pt3 >lint\8088-pt3.l
+
+lint\80188.l : src\80188.c inc\o88.h inc\macros.h makefile
+	lint -dOLD_ASM88 src\80188 >lint\80188.l
+
+lint\8087.l : src\8087.c inc\o88.h inc\macros.h makefile
+	lint -dPRODUCTION src\8087 >lint\8087.l
+
+lint\labels.l : src\labels.c inc\o88.h inc\macros.h
+	lint src\labels >lint\labels.l
+
+lint\asmlib.l : src\asmlib.c inc\o88.h inc\macros.h
+	lint src\asmlib >lint\asmlib.l
+
+lint\allocate.l : src\allocate.c inc\o88.h inc\macros.h
+	lint src\allocate >lint\allocate.l
+
+lint\squeeze.l : src\squeeze.c inc\o88.h inc\macros.h
+	lint src\squeeze >lint\squeeze.l
+
+lint\jumps.l : src\jumps.c inc\o88.h inc\macros.h
+	lint src\jumps >lint\jumps.l
+
+lint\folding.l : src\folding.c inc\o88.h inc\macros.h
+	lint src\folding >lint\folding.l
+
+lint\buffers.l : src\buffers.c inc\o88.h inc\macros.h
+	lint src\buffers >lint\buffers.l
+
+lint\cleanup.l : src\cleanup.c inc\o88.h inc\macros.h
+	lint src\cleanup >lint\cleanup.l
+
+lint\linklist.l : src\linklist.c inc\o88.h inc\macros.h
+	lint src\linklist >lint\linklist.l
+
+lint\data.l : src\data.c inc\o88.h
+	lint src\data >lint\data.l
