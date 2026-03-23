@@ -1086,7 +1086,7 @@ PRIVATE VOID Sign_On()
 	{
 	static BOOLEAN virgin = TRUE ;
 
-	if (virgin) puts(CC) ;
+	if (virgin){ puts(OPENCC); puts(CC); }
 	virgin = FALSE ;
 	}
 

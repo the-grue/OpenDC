@@ -231,6 +231,7 @@ CHAR *argv[] ;
 
 	/* I/O Filenames determined - ok to issue output now */
 	/* ------------------------------------------------- */
+	Errs(OPENO88) ; /* Sign-On */
 	Errs(O88) ; /* Sign-On */
 
 	/* Process options specified by environment variables */

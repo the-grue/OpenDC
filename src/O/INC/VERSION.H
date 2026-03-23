@@ -33,6 +33,8 @@
 */
 
 #define	O88 "O88 Optimizer   V3.06d  (c) Key Software Products, 1986-89\r\n"
+#define	OPENO88 "OpenO88 Optimizer v0.8 based on\r\n"
 #define	CC  "CC  Driver Pgm  V1.04   (c) Key Software Products, 1988-89\r\n"
+#define	OPENCC "OpenCC  Driver Pgm v0.8 based on"
 
 			 /*  End of file VERSION.H  */
