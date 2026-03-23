@@ -1,8 +1,8 @@
 set O88.1=+aefjmpst
 md obj
 
-rem cc src\cc -oobj\cc -px -nOLD_ASM88 /sinc\cc.stk
-rem if errorlevel 2 goto exit
+cc src\cc -oobj\cc -px -nOLD_ASM88 /sinc\cc.stk
+if errorlevel 2 goto exit
 
 cc src\gather -oobj\gather -px /sinc\o88.stk
 if errorlevel 2 goto exit
@@ -62,7 +62,8 @@ cc src\data -oobj\data -px /sinc\o88.stk
 if errorlevel 2 goto exit
 
 
-rem bind \c88\exec obj\cc -s1000 -occ -pcc.map -_
+copy ..\see\exec.ooo obj\exec.o
+bind obj\exec obj\cc -s1000 -omy_cc -pcc.map -_
 
 bind -ffiles -omy_o88 -po88.map -_
 

@@ -152,7 +152,7 @@ PRIVATE CHAR tempfile[15] = TEMPFILE ;
 PRIVATE BOOLEAN update = FALSE ;
 PRIVATE BOOLEAN display = FALSE ;
 PRIVATE CHAR *exe_file = NULL ;
-PRIVATE BOOLEAN interrupt = FALSE ;
+PRIVATE BOOLEAN interrupts = FALSE ;
 PRIVATE BOOLEAN o88_enabled = TRUE ;
 PRIVATE CHAR c88_args[200], o88_args[100], asm88_args[100] ;
 PRIVATE CHAR *b_switch, *t_switch, *o_switch, *a_switch, *c_switch, *m_switch;
@@ -295,7 +295,7 @@ CHAR *argv[] ;
 	if (rtn_code > 1) Delete_File(o_file) ;
 	else if (exe_file != NULL) rtn_code = Run_Bind(o_newer, new_ofile) ;
 
-	if (interrupt) puts(CTL_BRK) ;
+	if (interrupts) puts(CTL_BRK) ;
 
 	exit(rtn_code) ;
 	}
@@ -747,9 +747,9 @@ CHAR *program, *args ;
 
 	if ((path = Full_Path_Name(program)) != NULL)
 		{
-		interrupt = 0x00 ;
+		interrupts = 0x00 ;
 		status = exec(path, args) ;
-		return (status | interrupt) ;
+		return (status | interrupts) ;
 		}
 	return 0xFF ;
 	}
@@ -1061,7 +1061,7 @@ PRIVATE VOID Ctl_Brk()
 Int_23:
 	push	es
 	mov	es,cs:save_ds
-	mov	es:interrupt_,0FFh
+	mov	es:interrupts_,0FFh
 	pop	es
 	stc
 	lret
