@@ -124,7 +124,7 @@ main(argc,argv)
 	while (i < argc) if (*(argv[i++]+1) == '@') see_exit=1;
 	if (see_exit == 0)
 	{
-		fputs("Opennbind v0.7  based on\n",2);
+		fputs("Opennbind v0.8  based on\n",2);
 		fputs("Object Module Linker X3.0b  Copyright Mark DeSmet, 1988\n",2);
 	}
 #endif

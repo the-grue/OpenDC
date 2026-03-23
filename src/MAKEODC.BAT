@@ -131,6 +131,17 @@ cd include
 copy *.* ..\bin
 cd ..
 
+echo Building Optimizer
+
+cd o
+call make_o88.bat
+if not exist my_cc.exe goto stop
+copy my_cc.exe ..\bin\cc.exe
+if not exist my_o88.exe goto stop
+copy my_o88.exe ..\bin\o88.exe
+copy released\macros.h ..\bin
+cd ..
+
 echo Build complete.
 echo All files should now reside in bin directory.
 

@@ -100,7 +100,7 @@ main(argc,argv)
 	scr_clr();
 	lineno=5;
 	cursor();
-	dputs("OpenD88 v0.7   Based on ");
+	dputs("OpenD88 v0.8   Based on ");
 	dputs("D88 Debugger V1.6 (c) Mark DeSmet 1984,85,86");
 	lf();
 	setjmp(0);
